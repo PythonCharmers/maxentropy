@@ -16,7 +16,9 @@ License: BSD-style (see LICENSE.txt in main source directory)
 
 # Future imports must come before any code in 2.5
 from __future__ import division
+from __future__ import print_function
 
+from builtins import range
 __author__ = "Ed Schofield"
 __version__ = '2.0'
 
@@ -47,7 +49,7 @@ def _logsumexpcomplex(values):
     while True:
         # Loop until we have a value greater than -inf
         try:
-            b_i = iterator.next() + 0j
+            b_i = next(iterator) + 0j
         except StopIteration:
             # empty
             return float('-inf')
@@ -120,8 +122,8 @@ def arrayexp(x):
     try:
         ex = numpy.exp(x)
     except OverflowError:
-        print "Warning: OverflowError using numpy.exp(). Using slower Python"\
-              " routines instead!"
+        print("Warning: OverflowError using numpy.exp(). Using slower Python"\
+              " routines instead!")
         ex = numpy.empty(len(x), float)
         for j in range(len(x)):
             ex[j] = math.exp(x[j])
@@ -181,9 +183,9 @@ def densefeaturematrix(f, sample):
     n = len(sample)
 
     F = numpy.empty((m, n), float)
-    for i in xrange(m):
+    for i in range(m):
         f_i = f[i]
-        for j in xrange(n):
+        for j in range(n):
             x = sample[j]
             F[i,j] = f_i(x)
 
@@ -206,16 +208,16 @@ def sparsefeatures(f, x, format='csc_matrix'):
     elif format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
         sparsef = sparse.dok_matrix((m, 1))
 
-    for i in xrange(m):
+    for i in range(m):
         f_i_x = f[i](x)
         if f_i_x != 0:
             sparsef[i, 0] = f_i_x
 
     if format == 'csc_matrix':
-        print "Converting to CSC matrix ..."
+        print("Converting to CSC matrix ...")
         return sparsef.tocsc()
     elif format == 'csr_matrix':
-        print "Converting to CSR matrix ..."
+        print("Converting to CSR matrix ...")
         return sparsef.tocsr()
     else:
         return sparsef
@@ -241,9 +243,9 @@ def sparsefeaturematrix(f, sample, format='csc_matrix'):
     else:
         raise ValueError("sparse matrix format not recognized")
 
-    for i in xrange(m):
+    for i in range(m):
         f_i = f[i]
-        for j in xrange(n):
+        for j in range(n):
             x = sample[j]
             f_i_x = f_i(x)
             if f_i_x != 0:

@@ -1,6 +1,9 @@
+from __future__ import print_function
 # Test for conditional models
 # Ed Schofield, 2006
 
+from builtins import str
+from builtins import range
 from numpy import *
 from scipy.maxentropy import *
 
@@ -51,10 +54,10 @@ model.fit()
 pmf = model.pmf()
 # The elements of this are flatted like the rows of F and p_tilde.  We display
 # them nicely:
-print "x \ w \t 0 \t 1",
+print("x \ w \t 0 \t 1", end=' ')
 for x in range(4):
-    print '\n' + str(x),
+    print('\n' + str(x), end=' ')
     for w in range(2):
-        print ' \t %.3f' % pmf[w*numlabels + x],
+        print(' \t %.3f' % pmf[w*numlabels + x], end=' ')
         # print ' \t %.3f' % pmf[indices_context[w]][x],
-print
+print()

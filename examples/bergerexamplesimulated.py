@@ -21,7 +21,10 @@
     shows the steps one would take to fit a model on a continuous or
     large discrete sample space.
 """
+from __future__ import print_function
 
+from builtins import str
+from builtins import range
 __author__  =  'Ed Schofield'
 __version__ =  '2.1'
 
@@ -78,7 +81,7 @@ def sampleFgen(sampler, f, n):
         F = maxentropy.sparsefeaturematrix(f, xs, SPARSEFORMAT)
         yield F, logprobs
 
-print "Generating an initial sample ..."
+print("Generating an initial sample ...")
 model.setsampleFgen(sampleFgen(sampler, f, n))
 
 model.verbose = True
@@ -88,29 +91,29 @@ model.avegtol = 1e-4
 model.fit(K, algorithm=algorithm)
 
 # Output the true distribution
-print "\nFitted model parameters are:\n" + str(model.params)
+print("\nFitted model parameters are:\n" + str(model.params))
 smallmodel = maxentropy.model(f, samplespace)
 smallmodel.setparams(model.params)
-print "\nFitted distribution is:"
+print("\nFitted distribution is:")
 p = smallmodel.probdist()
 for j in range(len(smallmodel.samplespace)):
     x = smallmodel.samplespace[j]
-    print ("\tx = %-15s" %(x + ":",) + " p(x) = "+str(p[j])).encode('utf-8')
+    print(("\tx = %-15s" %(x + ":",) + " p(x) = "+str(p[j])).encode('utf-8'))
 
 
 # Now show how well the constraints are satisfied:
-print
-print "Desired constraints:"
-print "\tp['dans'] + p['en'] = 0.3"
-print ("\tp['dans'] + p['" + a_grave + "']  = 0.5").encode('utf-8')
-print
-print "Actual expectations under the fitted model:"
-print "\tp['dans'] + p['en'] =", p[0] + p[1]
-print ("\tp['dans'] + p['" + a_grave + "']  = " + \
-        str(p[0]+p[2])).encode('utf-8')
+print()
+print("Desired constraints:")
+print("\tp['dans'] + p['en'] = 0.3")
+print(("\tp['dans'] + p['" + a_grave + "']  = 0.5").encode('utf-8'))
+print()
+print("Actual expectations under the fitted model:")
+print("\tp['dans'] + p['en'] =", p[0] + p[1])
+print(("\tp['dans'] + p['" + a_grave + "']  = " + \
+        str(p[0]+p[2])).encode('utf-8'))
 # (Or substitute "x.encode('latin-1')" if you have a primitive terminal.)
 
-print "\nEstimated error in constraint satisfaction (should be close to 0):\n" \
-        + str(abs(model.expectations() - K))
-print "\nTrue error in constraint satisfaction (should be close to 0):\n" + \
-        str(abs(smallmodel.expectations() - K))
+print("\nEstimated error in constraint satisfaction (should be close to 0):\n" \
+        + str(abs(model.expectations() - K)))
+print("\nTrue error in constraint satisfaction (should be close to 0):\n" + \
+        str(abs(smallmodel.expectations() - K)))

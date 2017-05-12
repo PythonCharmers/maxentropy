@@ -15,7 +15,9 @@
     This code finds the probability distribution with maximal entropy
     subject to these constraints.
 """
+from __future__ import print_function
 
+from builtins import str
 __author__ =  'Ed Schofield'
 
 from scipy import maxentropy, sparse
@@ -94,22 +96,22 @@ model.verbose = True
 model.fit()
 
 # Output the distribution
-print "\nFitted model parameters are:\n" + str(model.params)
+print("\nFitted model parameters are:\n" + str(model.params))
 
 p = model.probdist()
 
-print "\npmf table p(x | c), where c is the context 'the':"
+print("\npmf table p(x | c), where c is the context 'the':")
 c = contexts.index('the')
-print p[c*numsamplepoints:(c+1)*numsamplepoints]
+print(p[c*numsamplepoints:(c+1)*numsamplepoints])
 
-print "\nFitted distribution is:"
-print "%12s" % ("c \ x"),
+print("\nFitted distribution is:")
+print("%12s" % ("c \ x"), end=' ')
 for label in samplespace:
-    print "%12s" % label,
+    print("%12s" % label, end=' ')
 
 for c, context in enumerate(contexts):
-    print "\n%12s" % context,
+    print("\n%12s" % context, end=' ')
     for x, label in enumerate(samplespace):
-        print ("%12.3f" % p[c*numsamplepoints+x]),
+        print(("%12.3f" % p[c*numsamplepoints+x]), end=' ')
 
-print
+print()
