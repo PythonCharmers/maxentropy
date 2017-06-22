@@ -23,7 +23,7 @@ from builtins import range
 __author__ =  'Ed Schofield'
 __version__=  '2.1'
 
-from scipy import maxentropy
+import maxentropy
 
 a_grave = u'\u00e0'
 
@@ -40,7 +40,7 @@ def f2(x):
 
 f = [f0, f1, f2]
 
-model = maxentropy.model(f, samplespace)
+model = maxentropy.Model(f, samplespace)
 
 # Now set the desired feature expectations
 K = [1.0, 0.3, 0.5]

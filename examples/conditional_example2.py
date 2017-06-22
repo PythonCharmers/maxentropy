@@ -20,7 +20,8 @@ from __future__ import print_function
 from builtins import str
 __author__ =  'Ed Schofield'
 
-from scipy import maxentropy, sparse
+from scipy import sparse
+import maxentropy
 
 samplespace = ['dans', 'en', 'à', 'au cours de', 'pendant']
 # Occurrences of French words, and their 'next English word' contexts, in
@@ -84,11 +85,11 @@ for (x, c) in corpus:
 # internally with one long row vector.  What we really need is for sparse
 # matrices to offer a .reshape method so this conversion could be done
 # internally and transparently.  Then the numcontexts argument to the
-# conditionalmodel constructor could also be inferred from the matrix
+# ConditionalModel constructor could also be inferred from the matrix
 # dimensions.
 
 # Create a model
-model = maxentropy.conditionalmodel(F, N, numcontexts)
+model = conditionalmodel(F, N, numcontexts)
 
 model.verbose = True
 

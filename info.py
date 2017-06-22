@@ -66,10 +66,10 @@ with a real parameter vector theta of the same length as the feature
 statistic f(x), For more background, see, for example, Cover and
 Thomas (1991), *Elements of Information Theory*.
 
-See the file examples_discrete.py for a walk-through of how to use these
-routines when the sample space is small enough to be enumerated.
+See the file examples/berger_example.py for a simple walk-through of how to use
+these routines when the sample space is small enough to be enumerated.
 
-See examples_continuous.py for a a similar walk-through using
+See examples/berger_example_simulated.py for a a similar walk-through using
 simulation.
 
 """

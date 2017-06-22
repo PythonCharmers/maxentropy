@@ -23,15 +23,11 @@
 """
 from __future__ import print_function
 
-from builtins import str
-from builtins import range
-__author__  =  'Ed Schofield'
-__version__ =  '2.1'
-
-
 import sys
-from scipy import maxentropy
-from scipy.sandbox import montecarlo
+
+import maxentropy
+from maxentropy.maxentutils import dictsample, sampleFgen
+
 
 try:
     algorithm = sys.argv[1]
@@ -55,34 +51,21 @@ def f2(x):
 
 f = [f0, f1, f2]
 
-model = maxentropy.bigmodel()
+model = maxentropy.BigModel()
 
 # Now set the desired feature expectations
 K = [1.0, 0.3, 0.5]
 
 # Define a uniform instrumental distribution for sampling
-samplefreq = {}
-for e in samplespace:
-    samplefreq[e] = 1
-
-sampler = montecarlo.dictsampler(samplefreq)
+samplefreq = {e: 1 for e in samplespace}
 
 n = 10**4
 m = 3
 
-# Now create a generator of features of random points
-
-SPARSEFORMAT = 'csc_matrix'
-# Could also specify 'csr_matrix', 'dok_matrix', or (PySparse's) 'll_mat'
-
-def sampleFgen(sampler, f, n):
-    while True:
-        xs, logprobs = sampler.sample(n, return_probs=2)
-        F = maxentropy.sparsefeaturematrix(f, xs, SPARSEFORMAT)
-        yield F, logprobs
+# Now create a generator of features of random points and their logprobs
 
 print("Generating an initial sample ...")
-model.setsampleFgen(sampleFgen(sampler, f, n))
+model.setsampleFgen(sampleFgen(samplefreq, f, n))
 
 model.verbose = True
 
@@ -92,28 +75,28 @@ model.fit(K, algorithm=algorithm)
 
 # Output the true distribution
 print("\nFitted model parameters are:\n" + str(model.params))
-smallmodel = maxentropy.model(f, samplespace)
+smallmodel = maxentropy.Model(f, samplespace)
 smallmodel.setparams(model.params)
 print("\nFitted distribution is:")
 p = smallmodel.probdist()
-for j in range(len(smallmodel.samplespace)):
+for j, x in enumerate(smallmodel.samplespace):
     x = smallmodel.samplespace[j]
-    print(("\tx = %-15s" %(x + ":",) + " p(x) = "+str(p[j])).encode('utf-8'))
+    print("\tx = %-15s" %(x + ":",) + " p(x) = "+str(p[j]))
 
 
 # Now show how well the constraints are satisfied:
 print()
 print("Desired constraints:")
 print("\tp['dans'] + p['en'] = 0.3")
-print(("\tp['dans'] + p['" + a_grave + "']  = 0.5").encode('utf-8'))
+print("\tp['dans'] + p['" + a_grave + "']  = 0.5")
 print()
 print("Actual expectations under the fitted model:")
 print("\tp['dans'] + p['en'] =", p[0] + p[1])
-print(("\tp['dans'] + p['" + a_grave + "']  = " + \
-        str(p[0]+p[2])).encode('utf-8'))
+print("\tp['dans'] + p['" + a_grave + "']  = " +
+        str(p[0]+p[2]))
 # (Or substitute "x.encode('latin-1')" if you have a primitive terminal.)
 
-print("\nEstimated error in constraint satisfaction (should be close to 0):\n" \
+print("\nEstimated error in constraint satisfaction (should be close to 0):\n"
         + str(abs(model.expectations() - K)))
-print("\nTrue error in constraint satisfaction (should be close to 0):\n" + \
+print("\nTrue error in constraint satisfaction (should be close to 0):\n" +
         str(abs(smallmodel.expectations() - K)))

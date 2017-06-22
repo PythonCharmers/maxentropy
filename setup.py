@@ -10,6 +10,7 @@ def configuration(parent_package='', top_path=None):
 
     config.add_data_dir('tests')
     config.add_data_dir('examples')
+    config.get_version('version.py')
 
     return config
 
