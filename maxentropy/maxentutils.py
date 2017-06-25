@@ -227,7 +227,7 @@ def _robustarraylog(x):
 #     OBSOLETE?
 #     
 #     Returns the elementwise antilog of the real array x.
-# 
+#
 #     We try to exponentiate with np.exp() and, if that fails, with
 #     python's math.exp().  np.exp() is about 10 times faster but throws
 #     an OverflowError exception for numerical underflow (e.g. exp(-800),
@@ -243,19 +243,19 @@ def _robustarraylog(x):
 #         for j in range(len(x)):
 #             ex[j] = math.exp(x[j])
 #     return ex
-# 
+#
 # def arrayexpcomplex(x):
 #     """
 #     OBSOLETE?
 #     
 #     Returns the elementwise antilog of the vector x.
-# 
+#
 #     We try to exponentiate with np.exp() and, if that fails, with python's
 #     math.exp().  np.exp() is about 10 times faster but throws an
 #     OverflowError exception for numerical underflow (e.g. exp(-800),
 #     whereas python's math.exp() just returns zero, which is much more
 #     helpful.
-# 
+#
 #     """
 #     try:
 #         ex = np.exp(x).real
@@ -281,89 +281,216 @@ def sample_wr(population, k):
     return [population[_int(_random() * n)] for i in range(k)]
 
 
-def densefeatures(f, x):
-    """Returns a dense array of non-zero evaluations of the vector
-    functions fi in the list f at the point x.
+def evaluate_feature_matrix(feature_functions, xs,
+                            vectorized=True,
+                            format='csc_matrix',
+                            dtype=float,
+                            verbose=False):
+    """Evaluate a (m x n) matrix of features `F` of the sample `xs` as:
+
+        F[i, :] = f_i(xs[:])
+
+    if xs is 1D, or as:
+
+        F[i, j] = f_i(xs[:, j])
+
+    if xs is 2D, for each feature function `f_i` in `feature_functions`.
+
+    Parameters
+    ----------
+    feature_functions : a list of feature functions f_i.
+
+    xs : either:
+        1. a (d x n) matrix representing n d-dimensional
+           observations xs[: ,j] for j=1,...,n.
+        2. a 1d array or sequence (e.g list) of observations xs[j]
+           for j=1,...,n.
+
+    vectorized : bool (default True)
+        If True, the feature functions f_i are assumed to be vectorized;
+        then these will be passed all observations xs at once, in turn.
+
+        If False, the feature functions f_i will be evaluated one at a time.
+
+    format : str (default 'csc_matrix')
+        Options: 'ndarray', 'csc_matrix', 'csr_matrix', 'dok_matrix'.
+        If you have enough memory, it may be faster to create a dense
+        ndarray and then construct a e.g. CSC matrix from this.
+
+    Returns
+    -------
+    F : (m x n) matrix (in the given format: ndarray / csc_matrix / etc.)
+        Matrix of evaluated features.
+
     """
+    m = len(feature_functions)
 
-    return np.array([fi(x) for fi in f])
+    if isinstance(xs, np.ndarray) and xs.ndim == 2:
+        d, n = xs.shape
+    else:
+        n = len(xs)
 
-
-def densefeaturematrix(f, sample, verbose=False):
-    """Compute an (m x n) dense array of non-zero evaluations of the
-    scalar functions fi in the list f at the points x_1,...,x_n in the
-    list sample.
-    """
-
-    # Was: return np.array([[fi(x) for fi in f] for x in sample])
-
-    m = len(f)
-    n = len(sample)
-
-    F = np.empty((m, n), float)
-    for i in range(m):
-        f_i = f[i]
-        for j in range(n):
-            x = sample[j]
-            F[i,j] = f_i(x)
-    return F
-
-
-def sparsefeatures(f, x, format='csc_matrix'):
-    """Compute an mx1 sparse matrix of non-zero evaluations of the
-    scalar functions f_1,...,f_m in the list f at the point x.
-
-    """
-    m = len(f)
     if format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
-        sparsef = scipy.sparse.dok_matrix((m, 1))
+        F = scipy.sparse.dok_matrix((m, n), dtype=dtype)
+    elif format == 'ndarray':
+        F = np.empty((m, n), dtype=dtype)
     else:
-        raise ValueError("sparse matrix format not recognized")
+        raise ValueError('matrix format not recognized')
 
-    for i in range(m):
-        f_i_x = f[i](x)
-        if f_i_x != 0:
-            sparsef[i, 0] = f_i_x
-
-    if format == 'csc_matrix':
-        print("Converting to CSC matrix ...")
-        return sparsef.tocsc()
-    elif format == 'csr_matrix':
-        print("Converting to CSR matrix ...")
-        return sparsef.tocsr()
-    else:
-        return sparsef
-
-
-def sparsefeaturematrix(f, sample, format='csc_matrix', verbose=False):
-    """Compute an (m x n) sparse matrix of non-zero evaluations of the
-    scalar functions f_1,...,f_m in the list f at the points x_1,...,x_n
-    in the sequence 'sample'.
-
-    """
-    m = len(f)
-    n = len(sample)
-    if format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
-        sparseF = scipy.sparse.dok_matrix((m, n))
-    else:
-        raise ValueError("sparse matrix format not recognized")
-
-    for i in range(m):
+    for i, f_i in enumerate(feature_functions):
         if verbose:
-            print('Computing feature {i} of {m}'.format(i=i, m=m))
-        f_i = f[i]
-        for j in range(n):
-            x = sample[j]
-            f_i_x = f_i(x)
-            if f_i_x != 0:
-                sparseF[i,j] = f_i_x
+            print('Computing feature {i} of {m} ...'.format(i=i, m=m))
+        if vectorized:
+            F[i::m, :] = f_i(xs)
+        else:
+            for j in range(n):
+                f_i_x = f_i(xs[j])
+                if f_i_x != 0:
+                    F[i,j] = f_i_x
 
     if format == 'csc_matrix':
-        return sparseF.tocsc()
+        return F.tocsc()
     elif format == 'csr_matrix':
-        return sparseF.tocsr()
+        return F.tocsr()
     else:
-        return sparseF
+        return F
+
+
+# def densefeatures(f, x):
+#     """Returns a dense array of non-zero evaluations of the vector
+#     functions fi in the list f at the point x.
+#     """
+#
+#     return np.array([fi(x) for fi in f])
+
+
+# def densefeaturematrix(f, sample, verbose=False):
+#     """Compute an (m x n) dense array of non-zero evaluations of the
+#     scalar functions fi in the list f at the points x_1,...,x_n in the
+#     list sample.
+#     """
+#
+#     # Was: return np.array([[fi(x) for fi in f] for x in sample])
+#
+#     m = len(f)
+#     n = len(sample)
+#
+#     F = np.empty((m, n), float)
+#     for i in range(m):
+#         f_i = f[i]
+#         for j in range(n):
+#             x = sample[j]
+#             F[i,j] = f_i(x)
+#     return F
+
+
+# def sparsefeatures(f, x, format='csc_matrix'):
+#     """Compute an mx1 sparse matrix of non-zero evaluations of the
+#     scalar functions f_1,...,f_m in the list f at the point x.
+#
+#     """
+#     m = len(f)
+#     if format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
+#         sparsef = scipy.sparse.dok_matrix((m, 1))
+#     else:
+#         raise ValueError("sparse matrix format not recognized")
+#
+#     for i in range(m):
+#         f_i_x = f[i](x)
+#         if f_i_x != 0:
+#             sparsef[i, 0] = f_i_x
+#
+#     if format == 'csc_matrix':
+#         print("Converting to CSC matrix ...")
+#         return sparsef.tocsc()
+#     elif format == 'csr_matrix':
+#         print("Converting to CSR matrix ...")
+#         return sparsef.tocsr()
+#     else:
+#         return sparsef
+
+
+# def sparsefeaturematrix(f, sample, format='csc_matrix', verbose=False):
+#     """Compute an (m x n) sparse matrix of non-zero evaluations of the
+#     scalar functions f_1,...,f_m in the list f at the points x_1,...,x_n
+#     in the sequence 'sample'.
+#
+#     """
+#     m = len(f)
+#     n = len(sample)
+#     if format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
+#         sparseF = scipy.sparse.dok_matrix((m, n))
+#     else:
+#         raise ValueError("sparse matrix format not recognized")
+#
+#     for i in range(m):
+#         if verbose:
+#             print('Computing feature {i} of {m}'.format(i=i, m=m))
+#         f_i = f[i]
+#         for j in range(n):
+#             x = sample[j]
+#             f_i_x = f_i(x)
+#             if f_i_x != 0:
+#                 sparseF[i,j] = f_i_x
+#
+#     if format == 'csc_matrix':
+#         return sparseF.tocsc()
+#     elif format == 'csr_matrix':
+#         return sparseF.tocsr()
+#     else:
+#         return sparseF
+
+
+# def sparsefeaturematrix_vectorized(feature_functions, xs, format='csc_matrix'):
+#     """
+#     Evaluate a (m x n) matrix of features `F` of the sample `xs` as:
+#
+#         F[i, j] = f_i(xs[:, j])
+#
+#     Parameters
+#     ----------
+#     feature_functions : a list of feature functions f_i.
+#
+#     xs : either:
+#         1. a (d x n) matrix representing n d-dimensional
+#            observations xs[: ,j] for j=1,...,n.
+#         2. a 1d array or sequence (e.g list) of observations xs[j]
+#            for j=1,...,n.
+#
+#     The feature functions f_i are assumed to be vectorized. These will be
+#     passed all observations xs at once, in turn.
+#
+#     Note: some samples may be more efficient / practical to compute
+#     features one sample observation at a time (e.g. generated). For these
+#     cases, use sparsefeaturematrix().
+#
+#     Only pass sparse=True if you need the memory savings. If you want a
+#     sparse matrix but have enough memory, it may be faster to
+#     pass dense=True and then construct a CSC matrix from the dense NumPy
+#     array.
+#
+#     """
+#     m = len(feature_functions)
+#
+#     if isinstance(xs, np.ndarray) and xs.ndim == 2:
+#         d, n = xs.shape
+#     else:
+#         n = len(xs)
+#     if not sparse:
+#         F = np.empty((m, n), float)
+#     else:
+#         import scipy.sparse
+#         F = scipy.sparse.lil_matrix((m, n), dtype=float)
+#
+#     for i, f_i in enumerate(feature_functions):
+#         F[i::m, :] = f_i(xs)
+#
+#     if format == 'csc_matrix':
+#         return F.tocsc()
+#     elif format == 'csr_matrix':
+#         return F.tocsr()
+#     else:
+#         return F
 
 
 def vec_feature_function(feature_functions, sparse=False):
