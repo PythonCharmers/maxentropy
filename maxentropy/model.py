@@ -34,10 +34,11 @@ class Model(BaseModel):
     simulated) with large variance in the function estimates, this
     may be less robust than the gradient-based algorithms.
     """
-    def __init__(self, samplespace):
+    def __init__(self, samplespace, verbose=False):
         super(Model, self).__init__()
         self.samplespace = samplespace
         self.max_output_lines = 20
+        self.verbose = verbose
 
     def fit(self, f, K):
         """Fit the maxent model p whose feature expectations <f_i(X)> are given
@@ -86,7 +87,9 @@ class Model(BaseModel):
             the sample space, returning real values.
         """
         self.f = f
-        self.F = sparsefeaturematrix(f, self.samplespace, 'csr_matrix')
+        self.F = sparsefeaturematrix(f, self.samplespace,
+                                     format='csr_matrix',
+                                     verbose=self.verbose)
 
     def _check_features(self):
         """

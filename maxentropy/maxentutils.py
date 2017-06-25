@@ -282,15 +282,15 @@ def sample_wr(population, k):
 
 
 def densefeatures(f, x):
-    """Returns a dense array of non-zero evaluations of the functions fi
-    in the list f at the point x.
+    """Returns a dense array of non-zero evaluations of the vector
+    functions fi in the list f at the point x.
     """
 
     return np.array([fi(x) for fi in f])
 
 
-def densefeaturematrix(f, sample):
-    """Returns an (m x n) dense array of non-zero evaluations of the
+def densefeaturematrix(f, sample, verbose=False):
+    """Compute an (m x n) dense array of non-zero evaluations of the
     scalar functions fi in the list f at the points x_1,...,x_n in the
     list sample.
     """
@@ -306,25 +306,19 @@ def densefeaturematrix(f, sample):
         for j in range(n):
             x = sample[j]
             F[i,j] = f_i(x)
-
     return F
 
 
 def sparsefeatures(f, x, format='csc_matrix'):
-    """ Returns an Mx1 sparse matrix of non-zero evaluations of the
+    """Compute an mx1 sparse matrix of non-zero evaluations of the
     scalar functions f_1,...,f_m in the list f at the point x.
 
-    If format='ll_mat', the PySparse module (or a symlink to it) must be
-    available in the Python site-packages/ directory.  A trimmed-down
-    version, patched for NumPy compatibility, is available in the SciPy
-    sandbox/pysparse directory.
     """
     m = len(f)
-    if format == 'll_mat':
-        import spmatrix
-        sparsef = spmatrix.ll_mat(m, 1)
-    elif format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
+    if format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
         sparsef = scipy.sparse.dok_matrix((m, 1))
+    else:
+        raise ValueError("sparse matrix format not recognized")
 
     for i in range(m):
         f_i_x = f[i](x)
@@ -341,12 +335,12 @@ def sparsefeatures(f, x, format='csc_matrix'):
         return sparsef
 
 
-def sparsefeaturematrix(f, sample, format='csc_matrix'):
-    """Returns an (m x n) sparse matrix of non-zero evaluations of the scalar
-    or vector functions f_1,...,f_m in the list f at the points
-    x_1,...,x_n in the sequence 'sample'.
-    """
+def sparsefeaturematrix(f, sample, format='csc_matrix', verbose=False):
+    """Compute an (m x n) sparse matrix of non-zero evaluations of the
+    scalar functions f_1,...,f_m in the list f at the points x_1,...,x_n
+    in the sequence 'sample'.
 
+    """
     m = len(f)
     n = len(sample)
     if format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
@@ -355,6 +349,8 @@ def sparsefeaturematrix(f, sample, format='csc_matrix'):
         raise ValueError("sparse matrix format not recognized")
 
     for i in range(m):
+        if verbose:
+            print('Computing feature {i} of {m}'.format(i=i, m=m))
         f_i = f[i]
         for j in range(n):
             x = sample[j]

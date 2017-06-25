@@ -19,7 +19,7 @@ class BaseModel(object):
         self.format = self.__class__.__name__[:4]
         if self.format == 'base':
             raise ValueError("this class cannot be instantiated directly")
-        self.verbose = False
+        self.verbose = False  # subclasses to set this
         self.algorithm = 'CG'
 
         # Whether to store the feature matrix as a sparse matrix (scipy.sparse)
