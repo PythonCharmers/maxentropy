@@ -366,6 +366,62 @@ def sparsefeaturematrix(f, sample, format='csc_matrix', verbose=False):
         return sparseF
 
 
+def vec_feature_function(feature_functions, sparse=False):
+    """
+    Create and return a vectorized function `features(xs)` that
+    evaluates a (m x n) matrix of features `F` of the sample `xs` as:
+
+        F[i, j] = f_i(xs[:, j])
+
+    Parameters
+    ----------
+    feature_functions : a list of feature functions f_i.
+
+    `xs` will be passed to these functions as either:
+        1. a (d x n) matrix representing n d-dimensional
+           observations xs[: ,j] for j=1,...,n.
+        2. a 1d array or sequence (e.g list) of observations xs[j]
+           for j=1,...,n.
+
+    The feature functions f_i are assumed to be vectorized. These will be
+    passed all observations xs at once, in turn.
+
+    Note: some samples may be more efficient / practical to compute
+    features of one sample observation at a time (e.g. generated).
+
+    Only pass sparse=True if you need the memory savings. If you want a
+    sparse matrix but have enough memory, it may be faster to
+    pass dense=True and then construct a CSC matrix from the dense NumPy
+    array.
+    """
+    if sparse:
+        import scipy.sparse
+
+    m = len(feature_functions)
+
+    def vectorized_features(xs):
+        if isinstance(xs, np.ndarray) and xs.ndim == 2:
+            d, n = xs.shape
+        else:
+            n = len(xs)
+        if not sparse:
+            F = np.empty((m, n), float)
+        else:
+            F = scipy.sparse.lil_matrix((m, n), dtype=float)
+
+        # Equivalent:
+        # for i, f_i in enumerate(feature_functions):
+        #     for k in range(len(xs)):
+        #         F[len(feature_functions)*k+i, :] = f_i(xs[k])
+        for i, f_i in enumerate(feature_functions):
+            F[i::m, :] = f_i(xs)
+        if not sparse:
+            return F
+        else:
+            return scipy.sparse.csc_matrix(F)
+    return vectorized_features
+
+
 def dotprod(u,v):
     """
     This is a wrapper around general dense or sparse dot products.
