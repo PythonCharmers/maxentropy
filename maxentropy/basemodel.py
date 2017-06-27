@@ -77,22 +77,19 @@ class BaseModel(object):
         self.externalpriorlogprobs = None
 
 
-    def fit(self, f, K):
-        if isinstance(f, list):
-            self.setfeatures(f)
-        else:
-            self.F = f
+    def fit(self, K):
+        # First convert K to a numpy array if necessary
+        K = np.asarray(K, float)
+
+        assert K.ndim == 1
+
+        # Store the desired feature expectations as a member variable
+        self.K = K
 
         self._check_features()
 
         dual = self.dual
         grad = self.grad
-
-        # First convert K to a numpy array if necessary
-        K = np.asarray(K, float)
-
-        # Store the desired feature expectations as a member variable
-        self.K = K
 
         # Sanity checks
         try:

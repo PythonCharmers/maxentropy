@@ -2,7 +2,7 @@ from scipy.misc import logsumexp
 import numpy as np
 
 from .basemodel import BaseModel
-from .maxentutils import sparsefeaturematrix
+from .maxentutils import evaluate_feature_matrix
 
 
 class Model(BaseModel):
@@ -11,9 +11,24 @@ class Model(BaseModel):
 
     Parameters
     ----------
+    features : either (a) list of functions or (b) array
+
+        (a) list of functions: [f_1, ..., f_m]
+
+        (b) array: 2d array of shape (m, n)
+            Matrix representing evaluations of f_i(x) on all points
+            x_1,...,x_n in the sample space.
+
     samplespace : sequence
         an enumerable sequence of values x \in X that the model is
         defined over.
+
+    vectorized : bool (default True)
+        If True, the functions f_i(xs) accept a sequence of values
+        xs = (x_1, ..., x_n) at once and return a vector of length n.
+
+        If False, the functions f_i(x) take values x on the sample space and
+        return real values.
 
     Algorithms
     ----------
@@ -34,28 +49,30 @@ class Model(BaseModel):
     simulated) with large variance in the function estimates, this
     may be less robust than the gradient-based algorithms.
     """
-    def __init__(self, samplespace, verbose=False):
+    def __init__(self, features, samplespace, vectorized=True, format='csc_matrix', verbose=False):
         super(Model, self).__init__()
         self.samplespace = samplespace
         self.max_output_lines = 20
         self.verbose = verbose
+        self.vectorized = vectorized
 
-    def fit(self, f, K):
+        if isinstance(features, np.ndarray):
+            self.F = features
+        else:
+            self.f = features
+            fmt = format
+            self.F = evaluate_feature_matrix(features, samplespace,
+                                             format=format,
+                                             vectorized=vectorized,
+                                             verbose=verbose)
+        self._check_features()
+
+    def fit(self, K):
         """Fit the maxent model p whose feature expectations <f_i(X)> are given
         by the vector K_i.
 
         Parameters
         ----------
-        f : either (a) list of functions or (b) array
-
-            (a) list of functions: [f_1, ..., f_m] 
-                The functions f_i(x) take values x on the sample space and
-                return real values.
-
-            (b) array: 2d array of shape (m, n)
-                Matrix representing evaluations of f_i(x) on all points
-                x_1,...,x_n in the sample space.
-    
         K : array
             desired expectation values <f_i(X)> to set as constraints
             on the model p(X).
@@ -67,29 +84,30 @@ class Model(BaseModel):
         large to iterate over, use the 'BigModel' class instead.
 
         """
-        super(Model, self).fit(f, K)
+        super(Model, self).fit(K)
 
-    def setfeatures(self, f):
-        """
-        Create a new matrix self.F of features f of all points in the sample
-        space.
-        
-        Computes f(x) for each x in the sample space and stores them as self.F.
-        This uses lots of memory but is much faster than re-evaluating them at
-        each iteration.
+    # def setfeatures(self, f):
+    #     """
+    #     Create a new matrix self.F of features f of all points in the sample
+    #     space.
+    #
+    #     Computes f(x) for each x in the sample space and stores them as self.F.
+    #     This uses lots of memory but is much faster than re-evaluating them at
+    #     each iteration.
 
-        This is only appropriate when the sample space is finite.
+    #     This is only appropriate when the sample space is finite.
 
-        Parameters
-        ----------
-        f : list of functions
-            f is a list of feature functions f_i(x) that operate on values x on
-            the sample space, returning real values.
-        """
-        self.f = f
-        self.F = sparsefeaturematrix(f, self.samplespace,
-                                     format='csr_matrix',
-                                     verbose=self.verbose)
+    #     Parameters
+    #     ----------
+    #     f : list of functions
+    #         f is a list of feature functions f_i(x) that operate on values x on
+    #         the sample space, returning real values.
+    #     """
+    #     self.f = f
+    #     self.F = evaluate_feature_matrix(f, self.samplespace,
+    #                                      format='csr_matrix',
+    #                                      vectorized=self.vectorized
+    #                                      verbose=self.verbose)
 
     def _check_features(self):
         """
@@ -97,18 +115,26 @@ class Model(BaseModel):
         """
         # Ensure the feature matrix for the sample space has been set
         if not hasattr(self, 'F'):
-            raise AttributeError("first specify a feature matrix"
-                                  " using setfeatures()")
+            raise AttributeError('missing feature matrix')
+        assert self.F.ndim == 2
         try:
             assert self.F.shape[1] == len(self.samplespace)
         except:
             raise AttributeError('the feature matrix is incompatible with the sample space. The number of columns must equal len(self.samplespace)')
+        blank = False
+        if hasattr(self.F, 'nnz'):
+            if self.F.nnz == 0:
+                blank = True
+        else:
+            if (self.F == 0).all():
+                blank = True
+        if blank:
+            raise ValueError('the feature matrix is zero. Check whether your feature functions are vectorized and, if not, pass vectorized=False')
 
         # Watch out: if self.F is a dense NumPy matrix, its dot product
         # with a 1d parameter vector comes out as a 2d array, whereas if self.F
         # is a SciPy sparse matrix or dense NumPy array, its dot product
-        # with the parameters is 1d.
-        # If it's a matrix, cast it to a 
+        # with the parameters is 1d. If it's a matrix, cast it to an array.
         if isinstance(self.F, np.matrix):
             self.F = np.asarray(self.F)
 
@@ -246,7 +272,7 @@ class Model(BaseModel):
             """
             for j in range(n1, n2):
                 x = self.samplespace[j]
-                print("\tx = {0:15s} \tp(x) = {1:.3f}".format(str(x), p[j]))
+                print("\tx = {0:15s} \tp(x) = {1:.4f}".format(str(x), p[j]))
 
         p = self.probdist()
         n = len(self.samplespace)

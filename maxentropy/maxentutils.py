@@ -298,11 +298,11 @@ def evaluate_feature_matrix(feature_functions, xs,
 
     Parameters
     ----------
-    feature_functions : a list of feature functions f_i.
+    feature_functions : a list of m feature functions f_i.
 
     xs : either:
-        1. a (d x n) matrix representing n d-dimensional
-           observations xs[: ,j] for j=1,...,n.
+        1. a (n x d) matrix representing n d-dimensional
+           observations xs[j, :] for j=1,...,n.
         2. a 1d array or sequence (e.g list) of observations xs[j]
            for j=1,...,n.
 
@@ -326,9 +326,17 @@ def evaluate_feature_matrix(feature_functions, xs,
     m = len(feature_functions)
 
     if isinstance(xs, np.ndarray) and xs.ndim == 2:
-        d, n = xs.shape
+        n, d = xs.shape
+        if d == 1 and vectorized:
+            # xs may be a column vector, i.e. (n x 1) array.
+            # In this case, reshape it to a 1d array. This
+            # makes it easier to define functions that
+            # operate on only one variable (the usual case)
+            # given that sklearn's interface now forces 2D
+            # arrays X when calling .transform(X) and .fit(X).
+            xs = np.reshape(xs, n)
     else:
-        n = len(xs)
+        n, d = len(xs), 1
 
     if format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
         F = scipy.sparse.dok_matrix((m, n), dtype=dtype)
