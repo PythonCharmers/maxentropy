@@ -27,5 +27,7 @@ normal, von Mises, Cauchy, and others: see https://en.wikipedia.org/wiki/Maximum
 
 ## Quickstart example: constructing a prior subject to known constraints
 
-See this notebook: https://github.com/PythonCharmers/maxentropy/blob/master/notebooks/Loaded%20die%20example%20-%20skmaxent.ipynb
+See the [notebooks folder](https://github.com/PythonCharmers/maxentropy/tree/master/notebooks).
+
+This is a good place to start: [Loaded die example (scikit-learn estimator API)](https://github.com/PythonCharmers/maxentropy/blob/master/notebooks/Loaded%20die%20example%20-%20skmaxent.ipynb
 
