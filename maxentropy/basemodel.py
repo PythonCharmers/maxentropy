@@ -22,10 +22,6 @@ class BaseModel(object):
         self.verbose = False  # subclasses to set this
         self.algorithm = 'CG'
 
-        # Whether to store the feature matrix as a sparse matrix (scipy.sparse)
-        # or dense array (NumPy):
-        self.sparse = True
-
         self.maxgtol = 1e-7
 
         # Required tolerance of gradient on average (closeness to zero,axis=0)
@@ -149,6 +145,8 @@ class BaseModel(object):
                                    callback=callback)
 
             (newparams, fopt, direc, numiter, func_calls, warnflag) = retval
+            # fmin_powell seems to turn newparams into a 0d array
+            newparams = np.atleast_1d(newparams)
 
         elif self.algorithm == 'Nelder-Mead':
             retval = optimize.fmin(dual, oldparams, args=(), \
@@ -211,8 +209,13 @@ class BaseModel(object):
         if params is not None:
             self.setparams(params)
 
+        if not hasattr(self, 'K'):
+            raise ValueError('the entropy dual is a function of '
+                             'the target feature expectations. '
+                             'Set these first by calling `fit`.')
+
         # Subsumes both small and large cases:
-        L = self.lognormconst() - np.dot(self.params, self.K)
+        L = self.log_partition_function() - np.dot(self.params, self.K)
 
         if self.verbose and self.external is None:
             print("  dual is ", L)
@@ -304,6 +307,12 @@ class BaseModel(object):
         if params is not None:
             self.setparams(params)
 
+        if not hasattr(self, 'K'):
+            raise ValueError('the gradient of the entropy dual is '
+                             'a function of the target feature '
+                             'expectations. Set these first by '
+                             'calling `fit`.')
+
         G = self.expectations() - self.K
 
         if self.verbose and self.external is None:
@@ -367,13 +376,13 @@ class BaseModel(object):
         """Returns the normalization constant, or partition function, for
         the current model.  Warning -- this may be too large to represent;
         if so, this will result in numerical overflow.  In this case use
-        lognormconst() instead.
+        log_partition_function() instead.
 
         For 'BigModel' instances, estimates the normalization term as
         Z = E_aux_dist [{exp (params.f(X))} / aux_dist(X)] using a sample
         from aux_dist.
         """
-        return np.exp(self.lognormconst())
+        return np.exp(self.log_partition_function())
 
 
     def setsmooth(self, sigma):
@@ -415,9 +424,9 @@ class BaseModel(object):
                 delattr(self, var)
 
     def resetparams(self, numfeatures=None):
-        """Resets the parameters self.params to zero, clearing the cache
-        variables dependent on them.  Also resets the number of function
-        and gradient evaluations to zero.
+        """Reset the parameters self.params to zero, clearing the
+        cache variables dependent on them.  Also reset the number of
+        function and gradient evaluations to zero.
         """
 
         if numfeatures:

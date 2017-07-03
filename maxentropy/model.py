@@ -20,7 +20,7 @@ class Model(BaseModel):
             x_1,...,x_n in the sample space.
 
     samplespace : sequence
-        an enumerable sequence of values x \in X that the model is
+        an enumerable sequence of values x in X that the model is
         defined over.
 
     vectorized : bool (default True)
@@ -60,7 +60,6 @@ class Model(BaseModel):
             self.F = features
         else:
             self.f = features
-            fmt = format
             self.F = evaluate_feature_matrix(features, samplespace,
                                              format=format,
                                              vectorized=vectorized,
@@ -138,7 +137,7 @@ class Model(BaseModel):
         if isinstance(self.F, np.matrix):
             self.F = np.asarray(self.F)
 
-    def lognormconst(self):
+    def log_partition_function(self):
         """Compute the log of the normalization constant (partition
         function) Z=sum_{x \in samplespace} p_0(x) exp(params . f(x)).
         The sample space must be discrete and finite.
@@ -213,13 +212,13 @@ class Model(BaseModel):
         return np.exp(self.logprobdist())
 
     def pmf_function(self, f=None):
-        """Returns the pmf p_theta(x) as a function taking values on the
+        """Returns the pmf p_params(x) as a function taking values on the
         model's sample space.  The returned pmf is defined as:
 
-            p_theta(x) = exp(theta.f(x) - log Z)
+            p_params(x) = exp(params.f(x) - log Z)
 
-        where theta is the current parameter vector self.params.  The
-        returned function p_theta also satisfies
+        where params is the current parameter vector self.params.  The
+        returned function p_params also satisfies
             all([p(x) for x in self.samplespace] == pmf()).
 
         The feature statistic f should be a list of functions
@@ -233,7 +232,7 @@ class Model(BaseModel):
         if hasattr(self, 'logZ'):
             logZ = self.logZ
         else:
-            logZ = self.lognormconst()
+            logZ = self.log_partition_function()
 
         if f is None:
             try:

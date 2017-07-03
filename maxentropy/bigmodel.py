@@ -69,14 +69,12 @@ class BigModel(BaseModel):
     may be less robust than the gradient-based algorithms.
     """
 
-    def __init__(self, feature_functions, auxiliary_sampler, sparse=True):
+    def __init__(self, feature_functions, auxiliary_sampler, format='csc_matrix'):
         super(BigModel, self).__init__()
 
-        self.sparse = sparse
-        fmt = 'csc_matrix' if sparse else 'ndarray'
         self.features = lambda xs: evaluate_feature_matrix(feature_functions,
                                                            xs,
-                                                           format=fmt)
+                                                           format=format)
 
         # We allow auxiliary_sampler to be a function or method or simply the
         # .__next__ method of a generator (which, curiously, isn't of MethodType).
@@ -245,7 +243,7 @@ class BigModel(BaseModel):
         self.clearcache()
 
 
-    def lognormconst(self):
+    def log_partition_function(self):
         """Estimate the normalization constant (partition function) using
         the current sample matrix F.
         """
@@ -368,7 +366,7 @@ class BigModel(BaseModel):
         and
             denom = [n * Zapprox]
 
-        where Zapprox = exp(self.lognormconst()).
+        where Zapprox = exp(self.log_partition_function()).
 
         We can compute the denominator n*Zapprox directly as:
             exp(logsumexp(log p_dot(s_j) - log aux_dist(s_j)))
@@ -393,7 +391,7 @@ class BigModel(BaseModel):
 
             logv = self._logv()
             n = len(logv)
-            logZ = self.lognormconst()
+            logZ = self.log_partition_function()
             logZs.append(logZ)
 
             # We don't need to handle negative values separately,
@@ -465,7 +463,7 @@ class BigModel(BaseModel):
         This is defined as:
             p_theta(x) = exp(theta.f(x)) / Z
         """
-        log_Z_est = self.lognormconst()
+        log_Z_est = self.log_partition_function()
 
         def p(fx):
             return np.exp(innerprodtranspose(fx, self.params) - log_Z_est)
@@ -492,7 +490,7 @@ class BigModel(BaseModel):
         and p then represents the model of minimum KL divergence D(p||p0)
         instead of maximum entropy.
         """
-        log_Z_est = self.lognormconst()
+        log_Z_est = self.log_partition_function()
         if len(fx.shape) == 1:
             logpdf = np.dot(self.params, fx) - log_Z_est
         else:
