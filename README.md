@@ -34,7 +34,7 @@ and others: see
 See the [notebooks folder](https://github.com/PythonCharmers/maxentropy/tree/master/notebooks).
 
 ### Quickstart guide
-This is a good place to start: [Loaded die example (scikit-learn estimator API)](https://github.com/PythonCharmers/maxentropy/blob/master/notebooks/Loaded%20die%20example%20-%20skmaxent.ipynb
+This is a good place to start: [Loaded die example (scikit-learn estimator API)](https://github.com/PythonCharmers/maxentropy/blob/master/notebooks/Loaded%20die%20example%20-%20skmaxent.ipynb)
 
 ## History
 This package previously lived in SciPy 
