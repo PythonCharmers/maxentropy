@@ -5,16 +5,19 @@
 The code is currently in pre-release while being refactored to use
 the `scikit-learn` estimator interface.
 
-## Goal
+## Purpose
 
 This package helps you to construct a probability distribution
 (Bayesian prior) from prior information that you encode as
 generalized moment constraints.
 
-You can use either the maximum entropy principle to find the
-flattest distribution that meets your constraints, or the closely
-related principle of minimum divergence to find the "closest" model
-to your prior model that also satisfies your additional constraints.
+You can use it to either:
+
+1. find the flattest distribution that meets your constraints, using the
+   maximum entropy principle (discrete distributions only)
+
+2. or find the "closest" model to a given prior model (in a KL divergence
+   sense) that also satisfies your additional constraints.
 
 ## Background
 
