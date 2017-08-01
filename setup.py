@@ -1,18 +1,21 @@
 #!/usr/bin/env python
 
-from numpy.distutils.core import setup
-from numpy.distutils.misc_util import Configuration
-from os.path import join
+from setuptools import setup, find_packages
+import versioneer
 
-def configuration(parent_package='', top_path=None):
+setup(
+    name='maxentropy',
+    version = versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
+    packages=find_packages(),
+    package_data={
+        '': ['*.txt', '*.rst', '*.md'],
+    },
+    author='Ed Schofield',
+    author_email='ed@pythoncharmers.com',
+    description='Maximum entropy and minimum divergence models in Python',
+    license='BSD',
+    keywords='maximum-entropy minimum-divergence kullback-leibler-divergence KL-divergence bayesian-inference bayes scikit-learn sklearn prior prior-distribution',
+    url='https://github.com/PythonCharmers/maxentropy.git',
+)
 
-    config = Configuration('maxentropy', parent_package, top_path)
-
-    config.add_data_dir('tests')
-    config.add_data_dir('examples')
-    config.get_version('version.py')
-
-    return config
-
-if __name__ == '__main__':
-    setup(**configuration(top_path='').todict())

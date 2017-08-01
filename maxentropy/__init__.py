@@ -91,3 +91,6 @@ from . import maxentutils
 
 __version__ = '0.1.0'
 __all__ = ['BaseModel', 'model', 'conditionalmodel', 'BigModel']
+from ._version import get_versions
+__version__ = get_versions()['version']
+del get_versions
