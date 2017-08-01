@@ -31,6 +31,41 @@ import scipy.sparse
 from scipy.misc import logsumexp
 
 
+def feature_sampler(vec_f, auxiliary_sampler):
+    """
+    A generator function for tuples (F, log_q_xs, xs)
+
+    Parameters
+    ----------
+    vec_f : function
+        Pass `vec_f` as a (vectorized) function that operates on a vector of
+        samples xs = {x1,...,xn} and returns a feature matrix (m x n), where m
+        is some number of feature components.
+
+    auxiliary_sampler : function
+        Pass `auxiliary_sampler` as a function that returns a tuple
+        (xs, log_q_xs) representing a sample to use for sampling (e.g.
+        importance sampling) on the sample space of the model.
+
+        xs : list, 1d ndarray, or 2d matrix (n x d)
+            We require len(xs) == n.
+            
+
+    Yields
+    ------
+        tuples (F, log_q_xs, xs)
+        
+        F : matrix (m x n)
+        log_q_xs : as returned by auxiliary_sampler
+        xs : as returned by auxiliary_sampler
+
+    """
+    while True:
+        xs, log_q_xs = auxiliary_sampler()
+        F = vec_f(xs)  # compute feature matrix from points
+        yield F, log_q_xs, xs
+
+
 def dictsample(freq, size=None, return_probs=None):
     """
     Create a sample of the given size from the specified discrete distribution.
@@ -134,12 +169,12 @@ def auxiliary_sampler_scipy(auxiliary, dimensions=1, n=10**5):
 
         sampler(), when called with no parameters, returns a tuple
         (xs, log_q_xs), where:
-            xs = [x_1, ..., x_n]: a sample
+            xs : matrix (n x d): [x_1, ..., x_n]: a sample
             log_q_xs: log pdf values under the auxiliary sampler for each x_j
     """
     def sampler():
-        xs = auxiliary.rvs(size=(dimensions, n))
-        log_q_xs = np.log(auxiliary.pdf(xs)).sum(axis=0)
+        xs = auxiliary.rvs(size=(n, dimensions))
+        log_q_xs = np.log(auxiliary.pdf(xs.T)).sum(axis=0)
         return (xs, log_q_xs)
     return sampler
 
@@ -281,7 +316,8 @@ def sample_wr(population, k):
     return [population[_int(_random() * n)] for i in range(k)]
 
 
-def evaluate_feature_matrix(feature_functions, xs,
+def evaluate_feature_matrix(feature_functions,
+                            xs,
                             vectorized=True,
                             format='csc_matrix',
                             dtype=float,
@@ -501,20 +537,20 @@ def evaluate_feature_matrix(feature_functions, xs,
 #         return F
 
 
-def vec_feature_function(feature_functions, sparse=False):
+def old_vec_feature_function(feature_functions, sparse=False):
     """
     Create and return a vectorized function `features(xs)` that
-    evaluates a (m x n) matrix of features `F` of the sample `xs` as:
+    evaluates an (n x m) matrix of features `F` of the sample `xs` as:
 
-        F[i, j] = f_i(xs[:, j])
+        F[j, i] = f_i(xs[:, j])
 
     Parameters
     ----------
     feature_functions : a list of feature functions f_i.
 
     `xs` will be passed to these functions as either:
-        1. a (d x n) matrix representing n d-dimensional
-           observations xs[: ,j] for j=1,...,n.
+        1. an (n x d) matrix representing n d-dimensional
+           observations xs[j, :] for j=1,...,n.
         2. a 1d array or sequence (e.g list) of observations xs[j]
            for j=1,...,n.
 
@@ -526,7 +562,7 @@ def vec_feature_function(feature_functions, sparse=False):
 
     Only pass sparse=True if you need the memory savings. If you want a
     sparse matrix but have enough memory, it may be faster to
-    pass dense=True and then construct a CSC matrix from the dense NumPy
+    pass sparse=False and then construct a CSC matrix from the dense NumPy
     array.
     """
     if sparse:
@@ -536,20 +572,20 @@ def vec_feature_function(feature_functions, sparse=False):
 
     def vectorized_features(xs):
         if isinstance(xs, np.ndarray) and xs.ndim == 2:
-            d, n = xs.shape
+            n, d = xs.shape
         else:
             n = len(xs)
         if not sparse:
-            F = np.empty((m, n), float)
+            F = np.empty((n, m), float)
         else:
-            F = scipy.sparse.lil_matrix((m, n), dtype=float)
+            F = scipy.sparse.lil_matrix((n, m), dtype=float)
 
         # Equivalent:
         # for i, f_i in enumerate(feature_functions):
         #     for k in range(len(xs)):
         #         F[len(feature_functions)*k+i, :] = f_i(xs[k])
         for i, f_i in enumerate(feature_functions):
-            F[i::m, :] = f_i(xs)
+            F[:, i::m] = f_i(xs)
         if not sparse:
             return F
         else:

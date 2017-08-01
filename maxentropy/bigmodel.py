@@ -116,15 +116,6 @@ class BigModel(BaseModel):
         # a_k at a_0 for before decreasing it
         self.a_0_hold = 0
 
-        # Whether or not to use the same sample for all iterations
-        self.staticsample = True
-        # If matrixtrials > 1 and staticsample = True, (which is useful for
-        # estimating variance between the different feature estimates),
-        # next(self.samplerFgen) will be called once for each trial
-        # (0,...,matrixtrials) for each iteration.  This allows using a set
-        # of feature matrices, each of which stays constant over all
-        # iterations.
-
         # How many iterations of stochastic approximation between testing for
         # convergence
         self.testconvergefreq = 0
@@ -136,6 +127,15 @@ class BigModel(BaseModel):
         # Test for convergence every 'testevery' iterations, using one or
         # more external samples. If 0, don't test.
         self.testevery = 0
+
+        # Whether or not to use the same sample for all iterations
+        self.staticsample = True
+        # If matrixtrials > 1 and staticsample = True, (which is useful for
+        # estimating variance between the different feature estimates),
+        # next(self.samplerFgen) will be called once for each trial
+        # (0,...,matrixtrials) for each iteration.  This allows using a set
+        # of feature matrices, each of which stays constant over all
+        # iterations.
 
         self.resample()
 
@@ -243,7 +243,7 @@ class BigModel(BaseModel):
         self.clearcache()
 
 
-    def log_partition_function(self):
+    def log_norm_constant(self):
         """Estimate the normalization constant (partition function) using
         the current sample matrix F.
         """
@@ -366,7 +366,7 @@ class BigModel(BaseModel):
         and
             denom = [n * Zapprox]
 
-        where Zapprox = exp(self.log_partition_function()).
+        where Zapprox = exp(self.log_norm_constant()).
 
         We can compute the denominator n*Zapprox directly as:
             exp(logsumexp(log p_dot(s_j) - log aux_dist(s_j)))
@@ -391,7 +391,7 @@ class BigModel(BaseModel):
 
             logv = self._logv()
             n = len(logv)
-            logZ = self.log_partition_function()
+            logZ = self.log_norm_constant()
             logZs.append(logZ)
 
             # We don't need to handle negative values separately,
@@ -452,7 +452,7 @@ class BigModel(BaseModel):
         """Returns the estimated density p_theta(x) at the point x with
         feature statistic fx = f(x).  This is defined as
             p_theta(x) = exp(theta.f(x)) / Z(theta),
-        where Z is the estimated value self.normconst() of the partition
+        where Z is the estimated value self.norm_constant() of the partition
         function.
         """
         return np.exp(self.logpdf(fx))
@@ -463,7 +463,7 @@ class BigModel(BaseModel):
         This is defined as:
             p_theta(x) = exp(theta.f(x)) / Z
         """
-        log_Z_est = self.log_partition_function()
+        log_Z_est = self.log_norm_constant()
 
         def p(fx):
             return np.exp(innerprodtranspose(fx, self.params) - log_Z_est)
@@ -490,7 +490,7 @@ class BigModel(BaseModel):
         and p then represents the model of minimum KL divergence D(p||p0)
         instead of maximum entropy.
         """
-        log_Z_est = self.log_partition_function()
+        log_Z_est = self.log_norm_constant()
         if len(fx.shape) == 1:
             logpdf = np.dot(self.params, fx) - log_Z_est
         else:

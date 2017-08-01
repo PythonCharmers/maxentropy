@@ -1,10 +1,17 @@
+from __future__ import division
+from __future__ import print_function
+from __future__ import absolute_import
+
+import math
+from types import FunctionType, MethodType
+
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin, DensityMixin
 from sklearn.utils import check_array
 from scipy.misc import logsumexp
 from scipy.stats import entropy
 
-from maxentropy.maxentutils import evaluate_feature_matrix
+from maxentropy.maxentutils import evaluate_feature_matrix, feature_sampler
 from maxentropy.model import BaseModel
 
 
@@ -42,7 +49,7 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
         space and return real values. This is likely to be slow down computing
         the features significantly.
 
-    format : string
+    matrix_format : string
              Currently 'csr_matrix', 'csc_matrix', and 'ndarray'
              are recognized.
 
@@ -64,14 +71,14 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
     def __init__(self,
                  features,
                  samplespace,
-                 format='csr_matrix',
+                 matrix_format='csr_matrix',
                  vectorized=True,
                  verbose=0):
         """
 
         """
-        if format in ('csr_matrix', 'csc_matrix', 'ndarray'):
-            self.format = format
+        if matrix_format in ('csr_matrix', 'csc_matrix', 'ndarray'):
+            self.matrix_format = matrix_format
         else:
             raise ValueError('matrix format not understood')
         self.features = features
@@ -187,42 +194,21 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         space and return real values. This is likely to be slow down computing
         the features significantly.
 
-    priorlogprobs : None (default) or 1d ndarray
+    prior_log_probs : None (default) or 1d ndarray
         If not None, fitting the model minimizes Kullback-Leibler (KL)
         divergence between the prior distribution p_0 whose log probabilities
-        are given by `priorlogprobs`. This is expected to be a 1d ndarray of
+        are given by `prior_log_probs`. This is expected to be a 1d ndarray of
         length n = len(samplespace).
         
         If None, fitting the model maximizes Shannon information entropy H(p).
 
-        In both cases the minimization / maximization are done subject to the same
-        constraints on feature expectations.
+        In both cases the minimization / maximization are done subject to the
+        same constraints on feature expectations.
 
-    format : string
-        Currently 'csr_matrix', 'csc_matrix', and 'ndarray'
-        are recognized.
-
-    algorithm : string (default 'CG')
-        The algorithm can be 'CG', 'BFGS', 'LBFGSB', 'Powell', or
-        'Nelder-Mead'.
-
-        The CG (conjugate gradients) method is the default; it is quite fast
-        and requires only linear space in the number of parameters, (not
-        quadratic, like Newton-based methods).
-
-        The BFGS (Broyden-Fletcher-Goldfarb-Shanno) algorithm is a
-        variable metric Newton method.  It is perhaps faster than the CG
-        method but requires O(N^2) instead of O(N) memory, so it is
-        infeasible for more than about 10^3 parameters.
-
-        The Powell algorithm doesn't require gradients.  For exact models
-        it is slow but robust.  For big models (where func and grad are
-        simulated) with large variance in the function estimates, this
-        may be less robust than the gradient-based algorithms.
-
-    verbose : int, (default=0)
-        Enable verbose output.
-
+    For other parameters, see notes in the BaseModel docstring:
+    - algorithm
+    - matrix_format
+    - verbose
 
     Example usage:
     --------------
@@ -243,67 +229,33 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     def __init__(self,
                  features,
                  samplespace,
-                 priorlogprobs=None,
+                 prior_log_probs=None,
                  vectorized=True,
-                 format='csr_matrix',
+                 matrix_format='csr_matrix',
                  algorithm='CG',
                  verbose=0):
-        """
 
-        Parameters
-        ----------
-        """
-        super(MinDivergenceModel, self).__init__()
-
-        if format in ('csr_matrix', 'csc_matrix', 'ndarray'):
-            self.format = format
-        else:
-            raise ValueError('matrix format not understood')
+        BaseModel.__init__(self,
+                prior_log_probs,
+                matrix_format=matrix_format,
+                algorithm=algorithm,
+                verbose=verbose
+        )
 
         if isinstance(features, np.ndarray):
             self.F = features
         else:
             self.F = evaluate_feature_matrix(features, samplespace,
-                                             format=format,
+                                             format=matrix_format,
                                              vectorized=vectorized,
                                              verbose=verbose)
             self.features = features
 
         self.samplespace = samplespace
         self.vectorized = vectorized
-        self.priorlogprobs = priorlogprobs
-        self.algorithm = algorithm
-        self.verbose = verbose
         self.resetparams()
 
-    def fit(self, X, y=None):
-        """Fit the model of minimum divergence / maximum entropy subject to constraints E(U) = X
-
-        Parameters
-        ----------
-        X : ndarray (dense) of shape [1, n_features]
-            A row vector representing desired expectations of features.
-            This is deliberate: models of minimum divergence / maximum entropy
-            depend on the data only through the feature expectations.
-
-        y : is not used: placeholder to allow for usage in a Pipeline.
-
-        Returns
-        -------
-        self
-
-        """
-
-        X = check_array(X)
-        n_samples = X.shape[0]
-        if n_samples != 1:
-            raise ValueError('X must have only one row')
-        # Explicitly call the BaseModel fit method:
-        BaseModel.fit(self, X[0])
-        # self.params = self.model.params.copy()
-        return self
-
-    def log_partition_function(self):
+    def log_norm_constant(self):
         """Compute the log of the normalization term (partition
         function) Z=sum_{x \in samplespace} p_0(x) exp(params . f(x)).
         The sample space must be discrete and finite.
@@ -321,8 +273,8 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         log_p_dot = self.F.T.dot(self.params)
 
         # Are we minimizing KL divergence?
-        if self.priorlogprobs is not None:
-            log_p_dot += self.priorlogprobs
+        if self.prior_log_probs is not None:
+            log_p_dot += self.prior_log_probs
 
         self.logZ = logsumexp(log_p_dot)
         return self.logZ
@@ -337,10 +289,9 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 
         # A pre-computed matrix of features exists
         p = self.probdist()
-        #return innerprod(self.F, p)
         return self.F.dot(p)
 
-    def logprobdist(self):
+    def log_probdist(self):
         """Returns an array indexed by integers representing the
         logarithms of the probability mass function (pmf) at each point
         in the sample space under the current model (with the current
@@ -354,13 +305,12 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         # p(x) = exp(params . f(x)) / sum_y[exp params . f(y)]
         #      = exp[log p_dot(x) - logsumexp{log(p_dot(y))}]
 
-        #log_p_dot = innerprodtranspose(self.F, self.params)
         # Calculate the dot product of F^T and the parameter vector:
         log_p_dot = self.F.T.dot(self.params)
 
         # Do we have a prior distribution p_0?
-        if self.priorlogprobs is not None:
-            log_p_dot += self.priorlogprobs
+        if self.prior_log_probs is not None:
+            log_p_dot += self.prior_log_probs
         if not hasattr(self, 'logZ'):
             # Compute the norm constant (quickly!)
             self.logZ = logsumexp(log_p_dot)
@@ -373,9 +323,9 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         sample space under the current model (with the current parameter
         vector self.params).
 
-        Equivalent to exp(self.logprobdist())
+        Equivalent to exp(self.log_probdist())
         """
-        return np.exp(self.logprobdist())
+        return np.exp(self.log_probdist())
 
     def divergence(self):
         """Return the Kullback-Leibler (KL) divergence between the model and
@@ -388,20 +338,18 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                         = \sum_i P(x_i) [ log P(x_i) - log Q(x_i) ]
         """
 
-        if self.priorlogprobs is None:
-            raise ValueError('divergence cannot be computed because no prior'
+        if self.prior_log_probs is None:
+            raise ValueError('divergence cannot be computed because no prior '
                              'distribution was defined when creating the model')
 
         p = self.probdist()
-        log_p = self.logprobdist()
-        divergence = np.sum(p * (log_p - self.priorlogprobs))
+        log_p = self.log_probdist()
+        divergence = np.sum(p * (log_p - self.prior_log_probs))
 
         # To verify with SciPy:
-        # D = entropy(self.probdist(), np.exp(self.priorlogprobs))
+        # D = entropy(self.probdist(), np.exp(self.prior_log_probs))
         # assert np.allclose(D, divergence)
-
         return divergence
-
 
     def _check_features(self):
         """Validate whether the feature matrix has been set properly.
@@ -426,10 +374,515 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             raise ValueError('the feature matrix is zero. Check whether your feature functions are vectorized and, if not, pass vectorized=False')
 
         # Watch out: if self.F is a dense NumPy matrix, its dot product
-        # with a 1d parameter vector comes out as a 2d array, whereas if self.F
-        # is a SciPy sparse matrix or dense NumPy array, its dot product
-        # with the parameters is 1d. So, if it's a matrix, we cast it to an array.
+        # with a 1d parameter vector comes out as a 2d array, whereas if
+        # self.F is a SciPy sparse matrix or dense NumPy array, its dot
+        # product with the parameters is 1d. So, if it's a matrix, we cast
+        # it to an array.
         if isinstance(self.F, np.matrix):
             self.F = np.asarray(self.F)
+
+    def show_dist(self, max_output_lines=20):
+        """
+        Output the distribution
+        """
+        def show_x_and_px_values(n1, n2):
+            """
+            Output values x and their probabilities p_n from n=n1 to n=n2
+            """
+            for j in range(n1, n2):
+                x = self.samplespace[j]
+                print("\tx = {0:15s} \tp(x) = {1:.4f}".format(str(x), p[j]))
+
+        p = self.probdist()
+        n = len(self.samplespace)
+        if n < max_output_lines:
+            show_x_and_px_values(0, n)
+        else:
+            # Show the first e.g. 10 values, then ..., then the last 10 values
+            show_x_and_px_values(0, max_output_lines // 2)
+            print("\t...")
+            show_x_and_px_values(n - max_output_lines // 2, n)
+
+
+class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
+    """
+    A minimum KL-divergence / maximum-entropy (exponential-form) model
+    on a large sample space requiring Monte Carlo simulation.
+
+    Model expectations are computed using Monte Carlo simulation.
+
+    The model expectations are not computed exactly (by summing or
+    integrating over a sample space) but approximately (by Monte Carlo
+    estimation).  Approximation is necessary when the sample space is too
+    large to sum or integrate over in practice, like a continuous sample
+    space in more than about 4 dimensions or a large discrete space like
+    all possible sentences in a natural language.
+
+    Approximating the expectations by sampling requires an instrumental
+    distribution that should be close to the model for fast convergence.
+    The tails should be fatter than the model.
+    
+    This instrumental distribution is specified in the constructor.
+
+    Sets up a generator for feature matrices internally from a list of feature
+    functions.
+
+    Parameters
+    ----------
+    feature_functions : list of vectorized functions
+        Each feature function must operate on a vector of samples xs =
+        {x1,...,xn}, either real data or samples generated by the auxiliary
+        sampler.
+
+        If your feature functions are not vectorized, you can wrap them in
+        calls to np.vectorize(f_i), but beware the performance overhead.
+
+    auxiliary_sampler : callable
+
+        Pass auxiliary_sampler as a function that will be used for importance
+        sampling. When called with no arguments it should return a tuple
+        (xs, log_q_xs) representing:
+
+            xs: a sample x_1,...,x_n to use for importance sampling
+
+            log_q_xs: an array of length n containing the (natural) log
+                      probability density (pdf or pmf) of each point under the
+                      auxiliary sampling distribution.
+
+    For other parameters, see notes in the BaseModel docstring:
+    - algorithm
+    - matrix_format
+    - verbose
+
+    """
+
+    def __init__(self,
+                 feature_functions,
+                 auxiliary_sampler,
+                 prior_log_probs=None,
+                 vectorized=True,
+                 matrix_format='csc_matrix',
+                 algorithm='CG',
+                 verbose=0):
+
+        BaseModel.__init__(self,
+                prior_log_probs,
+                matrix_format=matrix_format,
+                algorithm=algorithm,
+                verbose=verbose
+        )
+
+        self.features = lambda xs: evaluate_feature_matrix(feature_functions,
+                                                           xs,
+                                                           format=matrix_format)
+
+        # We allow auxiliary_sampler to be a function or method or simply the
+        # .__next__ method of a generator (which, curiously, isn't of type
+        # MethodType).
+        assert (isinstance(auxiliary_sampler, (FunctionType, MethodType))
+                or (hasattr(auxiliary_sampler, '__name__')
+                    and auxiliary_sampler.__name__ == '__next__'))
+
+        self.auxiliary_sampler = auxiliary_sampler
+
+        self.samplegen = feature_sampler(self.features, self.auxiliary_sampler)
+
+        # Number of sample matrices to generate and use to estimate E and logZ
+        self.matrixtrials = 1
+
+        # Store the lowest dual estimate observed so far in the fitting process
+        self.bestdual = float('inf')
+
+        # Whether or not to use the same sample for all iterations
+        self.staticsample = True
+        # If matrixtrials > 1 and staticsample = True, (which is useful for
+        # estimating variance between the different feature estimates),
+        # next(self.samplerFgen) will be called once for each trial
+        # (0,...,matrixtrials) for each iteration.  This allows using a set
+        # of feature matrices, each of which stays constant over all
+        # iterations.
+
+        # Test for convergence every 'testevery' iterations, using one or
+        # more external samples. If 0, don't test.
+        self.testevery = 0
+
+        self.resample()
+
+    def _check_features(self):
+        """
+        Validation of whether the feature matrix has been set properly
+        """
+        # Ensure the sample matrix has been set
+        if not (hasattr(self, 'sample_F') and hasattr(self, 'sample_log_probs')):
+            raise AttributeError('first specify a sample feature matrix')
+
+    def resample(self):
+        """
+        (Re)sample the matrix F of sample features, sample log probs, and
+        (optionally) sample points too.
+        """
+
+        if self.verbose >= 3:
+            print("(sampling)")
+
+        # First delete the existing sample matrix to save memory
+        # This matters, since these can be very large
+        if hasattr(self, 'sample_F'):
+            del self.sample_F
+        if hasattr(self, 'sample_log_probs'):
+            del self.sample_log_probs
+        if hasattr(self, 'sample'):
+            del self.sample
+
+        # Now generate a new sample
+        output = next(self.samplegen)
+
+        # Assume the format is (F, lp, sample)
+        (self.sample_F, self.sample_log_probs, self.sample) = output
+
+        # Check whether the number m of features and the dimensionalities are correct
+        m, n = self.sample_F.shape
+        try:
+            # The number of features is defined as the length of
+            # self.params, so first check if it exists:
+            self.params
+        except AttributeError:
+            self.params = np.zeros(m, float)
+        else:
+            if m != len(self.params):
+                raise ValueError("the sample feature generator returned"
+                                  " a feature matrix of incorrect dimensions."
+                                  " The number of rows must equal the number of model parameters.")
+
+        # Check the dimensionality of sample_log_probs is correct. It should be 1d, of length n
+        if not (isinstance(self.sample_log_probs, np.ndarray) and self.sample_log_probs.shape == (n,)):
+            raise ValueError('Your sampler appears to be spitting out logprobs of the wrong dimensionality.')
+
+        if self.verbose >= 3:
+            print("(done)")
+
+        # Now clear the temporary variables that are no longer correct for this
+        # sample
+        self.clearcache()
+
+    def log_norm_constant(self):
+        """Estimate the normalization constant (partition function) using
+        the current sample matrix F.
+        """
+        # First see whether logZ has been precomputed
+        if hasattr(self, 'logZapprox'):
+            return self.logZapprox
+
+        # Compute log v = log [p_dot(s_j)/aux_dist(s_j)]   for
+        # j=1,...,n=|sample| using a precomputed matrix of sample
+        # features.
+        logv = self._logv()
+
+        # Good, we have our logv.  Now:
+        n = len(logv)
+        self.logZapprox = logsumexp(logv) - math.log(n)
+        return self.logZapprox
+
+    def expectations(self):
+        """
+        Estimate the feature expectations E_p[f(X)] under the current
+        model p = p_theta using the given sample feature matrix.
+
+        If self.staticsample is True, uses the current feature matrix
+        self.sample_F.  If self.staticsample is False or self.matrixtrials
+        is > 1, draw one or more sample feature matrices F afresh using
+        the generator function samplegen().
+        """
+        # See if already computed
+        if hasattr(self, 'mu'):
+            return self.mu
+        self.estimate()
+        return self.mu
+
+    def _logv(self):
+        """This function helps with caching of interim computational
+        results.  It is designed to be called internally, not by a user.
+
+        Returns
+        -------
+        logv : 1d ndarray
+               The array of unnormalized importance sampling weights
+               corresponding to the sample x_j whose features are represented
+               as the columns of self.sample_F.
+
+               Defined as:
+
+                   logv_j = p_dot(x_j) / q(x_j),
+
+               where p_dot(x_j) = p_0(x_j) exp(theta . f(x_j)) is the
+               unnormalized pdf value of the point x_j under the current model.
+        """
+        # First see whether logv has been precomputed
+        if hasattr(self, 'logv'):
+            return self.logv
+
+        # Compute log v = log [p_dot(s_j)/aux_dist(s_j)]   for
+        # j=1,...,n=|sample| using a precomputed matrix of sample
+        # features.
+        if self.external is None:
+            paramsdotF = self.sample_F.T.dot(self.params)
+            logv = paramsdotF - self.sample_log_probs
+            # Are we minimizing KL divergence between the model and a prior
+            # density p_0?
+            if self.prior_log_probs is not None:
+                logv += self.prior_log_probs
+        else:
+            e = self.external
+            paramsdotF = self.external_Fs[e].T.dot(self.params)
+            logv = paramsdotF - self.external_logprobs[e]
+            # Are we minimizing KL divergence between the model and a prior
+            # density p_0?
+            if self.external_prior_log_probs is not None:
+                logv += self.external_prior_log_probs[e]
+
+        # Good, we have our logv.  Now:
+        self.logv = logv
+        return logv
+
+    def estimate(self):
+        """
+        Approximate both the feature expectation vector E_p f(X) and the log
+        of the normalization term Z with importance sampling.
+
+        This function also computes the sample variance of the component
+        estimates of the feature expectations as: varE = var(E_1, ..., E_T)
+        where T is self.matrixtrials and E_t is the estimate of E_p f(X)
+        approximated using the 't'th auxiliary feature matrix.
+
+        It doesn't return anything, but stores the member variables
+        logZapprox, mu and varE.  (This is done because some optimization
+        algorithms retrieve the dual fn and gradient fn in separate
+        function calls, but we can compute them more efficiently
+        together.)
+
+        It uses a supplied generator whose __next__() method
+        returns features of random observations s_j generated according
+        to an auxiliary distribution aux_dist.  It uses these either in a
+        matrix (with multiple runs) or with a sequential procedure, with
+        more updating overhead but potentially stopping earlier (needing
+        fewer samples).  In the matrix case, the features F={f_i(s_j)}
+        and vector [log_aux_dist(s_j)] of log probabilities are generated
+        by calling resample().
+
+        We use [Rosenfeld01Wholesentence]'s estimate of E_p[f_i] as:
+            {sum_j  p(s_j)/aux_dist(s_j) f_i(s_j) }
+              / {sum_j p(s_j) / aux_dist(s_j)}.
+
+        Note that this is consistent but biased.
+
+        This equals:
+            {sum_j  p_dot(s_j)/aux_dist(s_j) f_i(s_j) }
+              / {sum_j p_dot(s_j) / aux_dist(s_j)}
+
+        Compute the estimator E_p f_i(X) in log space as:
+            num_i / denom,
+        where
+            num_i = exp(logsumexp(theta.f(s_j) - log aux_dist(s_j)
+                        + log f_i(s_j)))
+        and
+            denom = [n * Zapprox]
+
+        where Zapprox = exp(self.log_norm_constant()).
+
+        We can compute the denominator n*Zapprox directly as:
+            exp(logsumexp(log p_dot(s_j) - log aux_dist(s_j)))
+          = exp(logsumexp(theta.f(s_j) - log aux_dist(s_j)))
+        """
+
+        if self.verbose >= 3:
+            print("(estimating dual and gradient ...)")
+
+        # Hereafter is the matrix code
+
+        mus = []
+        logZs = []
+
+        for trial in range(self.matrixtrials):
+            if self.verbose >= 2 and self.matrixtrials > 1:
+                print("(trial " + str(trial) + " ...)")
+
+            # Resample if necessary
+            if (not self.staticsample) or self.matrixtrials > 1:
+                self.resample()
+
+            logv = self._logv()
+            n = len(logv)
+            logZ = self.log_norm_constant()
+            logZs.append(logZ)
+
+            # We don't need to handle negative values separately,
+            # because we don't need to take the log of the feature
+            # matrix sample_F. See Ed Schofield's PhD thesis, Section 4.4
+
+            logu = logv - logZ
+            if self.external is None:
+                averages =  self.sample_F.dot(np.exp(logu))
+            else:
+                averages = self.external_Fs[self.external].dot(np.exp(logu))
+            averages /= n
+            mus.append(averages)
+
+        # Now we have T=trials vectors of the sample means.  If trials > 1,
+        # estimate st dev of means and confidence intervals
+        ttrials = len(mus)   # total number of trials performed
+        if ttrials == 1:
+            self.mu = mus[0]
+            self.logZapprox = logZs[0]
+            try:
+                del self.varE       # make explicit that this has no meaning
+            except AttributeError:
+                pass
+        else:
+            # The log of the variance of logZ is:
+            #     -log(n-1) + logsumexp(2*log|Z_k - meanZ|)
+
+            self.logZapprox = logsumexp(logZs) - math.log(ttrials)
+            stdevlogZ = np.array(logZs).std()
+            mus = np.array(mus)
+            self.varE = columnvariances(mus)
+            self.mu = columnmeans(mus)
+
+    def pdf(self, fx):
+        """Returns the estimated density p_theta(x) at the point x with
+        feature statistic fx = f(x).  This is defined as
+            p_theta(x) = exp(theta.f(x)) / Z(theta),
+        where Z is the estimated value self.norm_constant() of the partition
+        function.
+        """
+        return np.exp(self.log_pdf(fx))
+
+    def pdf_function(self):
+        """Returns the estimated density p_theta(x) as a function p(f)
+        taking a vector f = f(x) of feature statistics at any point x.
+        This is defined as:
+            p_theta(x) = exp(theta.f(x)) / Z
+        """
+        log_Z_est = self.log_norm_constant()
+
+        def p(fx):
+            return np.exp(fx.T.dot(self.params) - log_Z_est)
+        return p
+
+
+    def log_pdf(self, fx, log_prior_x=None):
+        """Returns the log of the estimated density p(x) = p_theta(x) at
+        the point x.  If log_prior_x is None, this is defined as:
+            log p(x) = theta.f(x) - log Z
+        where f(x) is given by the (m x 1) array fx.
+
+        If, instead, fx is a 2-d (m x n) array, this function interprets
+        each of its rows j=0,...,n-1 as a feature vector f(x_j), and
+        returns an array containing the log pdf value of each point x_j
+        under the current model.
+
+        log Z is estimated using the auxiliary sampler provided.
+
+        The optional argument log_prior_x is the log of the prior density
+        p_0 at the point x (or at each point x_j if fx is 2-dimensional).
+        The log pdf of the model is then defined as
+            log p(x) = log p0(x) + theta.f(x) - log Z
+        and p then represents the model of minimum KL divergence D(p||p0)
+        instead of maximum entropy.
+        """
+        log_Z_est = self.log_norm_constant()
+        if len(fx.shape) == 1:
+            log_pdf = np.dot(self.params, fx) - log_Z_est
+        else:
+            log_pdf = fx.T.dot(self.params) - log_Z_est
+        if log_prior_x is not None:
+            log_pdf += log_prior_x
+        return log_pdf
+
+    def settestsamples(self, F_list, logprob_list, testevery=1, priorlogprob_list=None):
+        """Requests that the model be tested every 'testevery' iterations
+        during fitting using the provided list F_list of feature
+        matrices, each representing a sample {x_j} from an auxiliary
+        distribution q, together with the corresponding log probabiltiy
+        mass or density values log {q(x_j)} in logprob_list.  This is
+        useful as an external check on the fitting process with sample
+        path optimization, which could otherwise reflect the vagaries of
+        the single sample being used for optimization, rather than the
+        population as a whole.
+
+        If self.testevery > 1, only perform the test every self.testevery
+        calls.
+
+        If priorlogprob_list is not None, it should be a list of arrays
+        of log(p0(x_j)) values, j = 0,. ..., n - 1, specifying the prior
+        distribution p0 for the sample points x_j for each of the test
+        samples.
+        """
+        # Sanity check
+        assert len(F_list) == len(logprob_list)
+
+        self.testevery = testevery
+        self.external_Fs = F_list
+        self.external_logprobs = logprob_list
+        self.external_prior_log_probs = priorlogprob_list
+
+        # Store the dual and mean square error based on the internal and
+        # external (test) samples.  (The internal sample is used
+        # statically for sample path optimization; the test samples are
+        # used as a control for the process.)  The hash keys are the
+        # number of function or gradient evaluations that have been made
+        # before now.
+
+        # The mean entropy dual and mean square error estimates among the
+        # t external (test) samples, where t = len(F_list) =
+        # len(logprob_list).
+        self.external_duals = {}
+        self.external_gradnorms = {}
+
+    def test(self):
+        """Estimate the dual and gradient on the external samples,
+        keeping track of the parameters that yield the minimum such dual.
+        The vector of desired (target) feature expectations is stored as
+        self.K.
+        """
+        if self.verbose:
+            print("  max(params**2)    = " + str((self.params**2).max()))
+
+        if self.verbose:
+            print("Now testing model on external sample(s) ...")
+
+        # Estimate the entropy dual and gradient for each sample.  These
+        # are not regularized (smoothed).
+        dualapprox = []
+        gradnorms = []
+        for e in range(len(self.external_Fs)):
+            self.external = e
+            self.clearcache()
+            if self.verbose >= 2:
+                print("(testing with sample %d)" % e)
+            dualapprox.append(self.dual(ignorepenalty=True, ignoretest=True))
+            gradnorms.append(norm(self.grad(ignorepenalty=True)))
+
+        # Reset to using the normal sample matrix sample_F
+        self.external = None
+        self.clearcache()
+
+        meandual = np.average(dualapprox,axis=0)
+        self.external_duals[self.iters] = dualapprox
+        self.external_gradnorms[self.iters] = gradnorms
+
+        if self.verbose:
+            print("** Mean (unregularized) dual estimate from the %d" \
+                  " external samples is %f" % \
+                 (len(self.external_Fs), meandual))
+            print("** Mean mean square error of the (unregularized) feature" \
+                    " expectation estimates from the external samples =" \
+                    " mean(|| \hat{\mu_e} - k ||,axis=0) =", np.average(gradnorms,axis=0))
+        # Track the parameter vector params with the lowest mean dual estimate
+        # so far:
+        if meandual < self.bestdual:
+            self.bestdual = meandual
+            self.bestparams = self.params
+            if self.verbose:
+                print("\n\t\t\tStored new minimum entropy dual: %f\n" % meandual)
 
 

@@ -2,25 +2,73 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import absolute_import
 
-import math, types, pickle
+import pickle
+from abc import ABCMeta
+
+import six
 import numpy as np
 from scipy import optimize
 from scipy.linalg import norm
+from sklearn.utils import check_array
 
 from maxentropy.maxentutils import DivergenceError
 
 
-class BaseModel(object):
+class BaseModel(six.with_metaclass(ABCMeta)):
     """A base class providing generic functionality for both small and
     large maximum entropy models.  Cannot be instantiated.
+
+    Parameters
+    ----------
+
+    matrix_format : string
+        Currently 'csr_matrix', 'csc_matrix', and 'ndarray'
+        are recognized.
+
+    algorithm : string (default 'CG')
+        The algorithm can be 'CG', 'BFGS', 'LBFGSB', 'Powell', or
+        'Nelder-Mead'.
+
+        The CG (conjugate gradients) method is the default; it is quite fast
+        and requires only linear space in the number of parameters, (not
+        quadratic, like Newton-based methods).
+
+        The BFGS (Broyden-Fletcher-Goldfarb-Shanno) algorithm is a
+        variable metric Newton method.  It is perhaps faster than the CG
+        method but requires O(N^2) instead of O(N) memory, so it is
+        infeasible for more than about 10^3 parameters.
+
+        The Powell algorithm doesn't require gradients.  For exact models
+        it is slow but robust.  For big models (where func and grad are
+        simulated) with large variance in the function estimates, this
+        may be less robust than the gradient-based algorithms.
+
+    verbose : int, (default=0)
+        Enable verbose output.
+
+    prior_log_probs : ndarray or None
+        Do you seek to minimize the KL divergence between the model and a
+        prior density p_0?  If not, set this to None; then we maximize the
+        entropy.  If so, set this to an array of the log probability densities
+        p_0(x) for each x in the sample space.  For models involving
+        simulation, set this to an array of the log probability densities
+        p_0(x) for each x in the random sample from the auxiliary distribution.
+
     """
 
-    def __init__(self):
-        self.format = self.__class__.__name__[:4]
-        if self.format == 'base':
-            raise ValueError("this class cannot be instantiated directly")
-        self.verbose = False  # subclasses to set this
-        self.algorithm = 'CG'
+    def __init__(self,
+                 prior_log_probs,
+                 algorithm='CG',
+                 matrix_format='csr_matrix',
+                 verbose=0):
+
+        self.prior_log_probs = prior_log_probs
+        self.algorithm = algorithm
+        if matrix_format in ('csr_matrix', 'csc_matrix', 'ndarray'):
+            self.matrix_format = matrix_format
+        else:
+            raise ValueError('matrix format not understood')
+        self.verbose = verbose
 
         self.maxgtol = 1e-7
 
@@ -56,27 +104,43 @@ class BaseModel(object):
         self.storegradnorms = False
         self.gradnorms = {}
 
-        # Do we seek to minimize the KL divergence between the model and a
-        # prior density p_0?  If not, set this to None; then we maximize the
-        # entropy.  If so, set this to an array of the log probability densities
-        # p_0(x) for each x in the sample space.  For BigModel objects, set this
-        # to an array of the log probability densities p_0(x) for each x in the
-        # random sample from the auxiliary distribution.
-        self.priorlogprobs = None
-
         # By default, use the sample matrix sampleF to estimate the
         # entropy dual and its gradient.  Otherwise, set self.external to
         # the index of the sample feature matrix in the list self.externalFs.
         # This applies to 'BigModel' objects only, but setting this here
         # simplifies the code in dual() and grad().
         self.external = None
-        self.externalpriorlogprobs = None
+        self.external_prior_log_probs = None
 
 
-    def fit(self, K):
-        # First convert K to a numpy array if necessary
-        K = np.asarray(K, float)
+    def fit(self, X, y=None):
+        """Fit the model of minimum divergence / maximum entropy subject to
+        constraints on the feature expectations <f_i(X)> = X[0].
 
+        Parameters
+        ----------
+        X : ndarray (dense) of shape [1, n_features]
+            A row vector (1 x n_features matrix) representing desired
+            expectations of features.  The curious shape is deliberate: models
+            of minimum divergence / maximum entropy depend on the data only
+            through the feature expectations.
+
+        y : is not used: placeholder to allow for usage in a Pipeline.
+
+        Returns
+        -------
+        self
+
+        """
+
+        X = check_array(X)
+        n_samples = X.shape[0]
+        if n_samples != 1:
+            raise ValueError('X must have only one row')
+
+        # Extract a 1d array of the feature expectations
+        # K = np.asarray(X[0], float)
+        K = X[0]
         assert K.ndim == 1
 
         # Store the desired feature expectations as a member variable
@@ -165,6 +229,7 @@ class BaseModel(object):
         if np.any(self.params != newparams):
             self.setparams(newparams)
         self.func_calls = func_calls
+        return self
 
     def dual(self, params=None, ignorepenalty=False, ignoretest=False):
         """Computes the Lagrangian dual L(theta) of the entropy of the
@@ -215,7 +280,7 @@ class BaseModel(object):
                              'Set these first by calling `fit`.')
 
         # Subsumes both small and large cases:
-        L = self.log_partition_function() - np.dot(self.params, self.K)
+        L = self.log_norm_constant() - np.dot(self.params, self.K)
 
         if self.verbose and self.external is None:
             print("  dual is ", L)
@@ -348,7 +413,7 @@ class BaseModel(object):
         return G
 
 
-    def crossentropy(self, fx, log_prior_x=None, base=np.e):
+    def cross_entropy(self, fx, log_prior_x=None, base=np.e):
         """Returns the cross entropy H(q, p) of the empirical
         distribution q of the data (with the given feature matrix fx)
         with respect to the model p.  For discrete distributions this is
@@ -372,17 +437,17 @@ class BaseModel(object):
             return H
 
 
-    def normconst(self):
+    def norm_constant(self):
         """Returns the normalization constant, or partition function, for
         the current model.  Warning -- this may be too large to represent;
         if so, this will result in numerical overflow.  In this case use
-        log_partition_function() instead.
+        log_norm_constant() instead.
 
         For 'BigModel' instances, estimates the normalization term as
         Z = E_aux_dist [{exp (params.f(X))} / aux_dist(X)] using a sample
         from aux_dist.
         """
-        return np.exp(self.log_partition_function())
+        return np.exp(self.log_norm_constant())
 
 
     def setsmooth(self, sigma):

@@ -127,7 +127,7 @@ class ConditionalModel(Model):
         self.numsamplepoints = S
 
 
-    def lognormconst(self):
+    def log_norm_constant(self):
         """Compute the elementwise log of the normalization constant
         (partition function) Z(w)=sum_{y \in Y(w)} exp(theta . f(w, y)).
         The sample space must be discrete and finite.  This is a vector
@@ -189,7 +189,7 @@ class ConditionalModel(Model):
             if params is not None:
                 self.setparams(params)
 
-        logZs = self.lognormconst()
+        logZs = self.log_norm_constant()
 
         L = np.dot(self.p_tilde_context, logZs) - np.dot(self.params, self.K)
 
