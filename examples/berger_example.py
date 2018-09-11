@@ -40,10 +40,10 @@ def f2(x):
 
 f = [f0, f1, f2]
 
-model = maxentropy.Model(f, samplespace)
+model = maxentropy.Model(f, samplespace, vectorized=False)
 
 # Now set the desired feature expectations
-K = [1.0, 0.3, 0.5]
+K = [[1.0, 0.3, 0.5]]
 
 model.verbose = True
 
