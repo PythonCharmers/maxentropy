@@ -280,7 +280,7 @@ class BaseModel(six.with_metaclass(ABCMeta)):
                              'Set these first by calling `fit`.')
 
         # Subsumes both small and large cases:
-        L = self.log_norm_constant() - np.dot(self.params, self.K)
+        L = self.log_partition_function() - np.dot(self.params, self.K)
 
         if self.verbose and self.external is None:
             print("  dual is ", L)
@@ -441,13 +441,13 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         """Returns the normalization constant, or partition function, for
         the current model.  Warning -- this may be too large to represent;
         if so, this will result in numerical overflow.  In this case use
-        log_norm_constant() instead.
+        log_partition_function() instead.
 
         For 'BigModel' instances, estimates the normalization term as
         Z = E_aux_dist [{exp (params.f(X))} / aux_dist(X)] using a sample
         from aux_dist.
         """
-        return np.exp(self.log_norm_constant())
+        return np.exp(self.log_partition_function())
 
 
     def setsmooth(self, sigma):
