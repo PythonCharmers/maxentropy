@@ -1,5 +1,6 @@
 from scipy.misc import logsumexp
 import numpy as np
+import math
 
 from .basemodel import BaseModel
 from .maxentutils import evaluate_feature_matrix
