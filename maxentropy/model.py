@@ -243,7 +243,7 @@ class Model(BaseModel):
 
         # Do we have a prior distribution p_0?
         priorlogpmf = None
-        if self.priorlogprobs is not None:
+        if self.prior_log_probs is not None:
             try:
                 priorlogpmf = self.priorlogpmf
             except AttributeError:
