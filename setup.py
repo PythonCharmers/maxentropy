@@ -11,6 +11,12 @@ setup(
     package_data={
         '': ['*.txt', '*.rst', '*.md'],
     },
+    install_requires=[
+        'numpy',
+        'scipy',
+        'six',
+        'sklearn',
+    ],
     author='Ed Schofield',
     author_email='ed@pythoncharmers.com',
     description='Maximum entropy and minimum divergence models in Python',
