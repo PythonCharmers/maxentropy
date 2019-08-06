@@ -15,6 +15,7 @@ setup(
     license='BSD',
     keywords='maximum-entropy minimum-divergence kullback-leibler-divergence KL-divergence bayesian-inference bayes scikit-learn sklearn prior prior-distribution',
     url='https://github.com/PythonCharmers/maxentropy.git',
+    install_requires=['sklearn'],
     classifiers=['Development Status :: 4 - Beta',
                  'Intended Audience :: Developers',
                  'Intended Audience :: Science/Research',
