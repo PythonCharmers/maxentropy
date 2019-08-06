@@ -1,13 +1,22 @@
 #!/usr/bin/env python
 
-from setuptools import setup, find_packages
+import io
+import re
+
+from setuptools import setup
+
+with io.open("maxentropy/__init__.py", "rt", encoding="utf8") as f:
+    version = re.search(r"__version__ = '(.*?)'", f.read()).group(1)
+
 
 setup(
     name='maxentropy',
     version = '0.3.0',
-    packages=find_packages(),
+    packages=['maxentropy'],
     package_data={
         '': ['*.txt', '*.rst', '*.md'],
+        'examples': ['*.py'],
+        'notebooks': ['*.ipynb']
     },
     author='Ed Schofield',
     author_email='ed@pythoncharmers.com',
@@ -16,6 +25,7 @@ setup(
     keywords='maximum-entropy minimum-divergence kullback-leibler-divergence KL-divergence bayesian-inference bayes scikit-learn sklearn prior prior-distribution',
     url='https://github.com/PythonCharmers/maxentropy.git',
     install_requires=['sklearn'],
+    python_requires=">=3.3",
     classifiers=['Development Status :: 4 - Beta',
                  'Intended Audience :: Developers',
                  'Intended Audience :: Science/Research',
