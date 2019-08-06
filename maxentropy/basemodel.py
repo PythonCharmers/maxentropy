@@ -86,9 +86,9 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         self.maxiter = 1000
         self.maxfun = 1500
         self.mindual = -100.    # The entropy dual must actually be
-                                # non-negative, but the estimate may be
-                                # slightly out with BigModel instances
-                                # without implying divergence to -inf
+                                # non-negative, but the estimate may be slightly
+                                # out with BigModel instances without implying
+                                # divergence to -inf
         self.callingback = False
         self.iters = 0          # the number of iterations so far of the
                                 # optimization algorithm
@@ -104,11 +104,11 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         self.storegradnorms = False
         self.gradnorms = {}
 
-        # By default, use the sample matrix sampleF to estimate the
-        # entropy dual and its gradient.  Otherwise, set self.external to
-        # the index of the sample feature matrix in the list self.externalFs.
-        # This applies to 'BigModel' objects only, but setting this here
-        # simplifies the code in dual() and grad().
+        # By default, use the sample matrix sampleF to estimate the entropy dual
+        # and its gradient.  Otherwise, set self.external to the index of the
+        # sample feature matrix in the list self.externalFs.  This applies to
+        # 'BigModel' objects only, but setting this here simplifies the code in
+        # dual() and grad().
         self.external = None
         self.external_prior_log_probs = None
 
@@ -438,14 +438,14 @@ class BaseModel(six.with_metaclass(ABCMeta)):
 
 
     def norm_constant(self):
-        """Returns the normalization constant, or partition function, for
+        """Return the normalization constant, or partition function, for
         the current model.  Warning -- this may be too large to represent;
         if so, this will result in numerical overflow.  In this case use
         log_norm_constant() instead.
 
         For 'BigModel' instances, estimates the normalization term as
-        Z = E_aux_dist [{exp (params.f(X))} / aux_dist(X)] using a sample
-        from aux_dist.
+        Z = E_aux_dist [{exp (params.f(X))} / aux_dist(X)] using a sample from
+        aux_dist.
         """
         return np.exp(self.log_norm_constant())
 

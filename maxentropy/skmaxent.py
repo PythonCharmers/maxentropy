@@ -94,7 +94,7 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
         X : Unused.
 
         y : Unused.
-        
+
         These are placeholders to allow for usage in a Pipeline.
 
         Returns
@@ -138,7 +138,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     a given prior distribution subject to defined moment constraints.
 
     This includes models of maximum entropy ("MaxEnt") as a special case.
-    
+
     This provides a principled method of assigning initial probabilities from
     prior information for Bayesian inference.
 
@@ -147,7 +147,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     distributions are special cases of maximum entropy models subject to moment
     constraints. This includes the following discrete probability
     distributions:
-        
+
     - Uniform
     - Bernoulli
     - Geometric
@@ -165,7 +165,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 
     The information entropy of continuous probability distributions is
     sensitive to the choice of probability measure, where as the divergence is not.
-    
+
     This makes continuous models easier to construct by minimizing divergence
     than by maximizing entropy.
 
@@ -199,7 +199,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         divergence between the prior distribution p_0 whose log probabilities
         are given by `prior_log_probs`. This is expected to be a 1d ndarray of
         length n = len(samplespace).
-        
+
         If None, fitting the model maximizes Shannon information entropy H(p).
 
         In both cases the minimization / maximization are done subject to the
@@ -421,7 +421,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     Approximating the expectations by sampling requires an instrumental
     distribution that should be close to the model for fast convergence.
     The tails should be fatter than the model.
-    
+
     This instrumental distribution is specified in the constructor.
 
     Sets up a generator for feature matrices internally from a list of feature

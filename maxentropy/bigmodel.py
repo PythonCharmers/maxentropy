@@ -180,11 +180,11 @@ class BigModel(BaseModel):
 
         For 'BigModel' instances, the model expectations are not computed
         exactly (by summing or integrating over a sample space) but
-        approximately (by Monte Carlo simulation).  Simulation is necessary
-        when the sample space is too large to sum or integrate over in
-        practice, like a continuous sample space in more than about 4
-        dimensions or a large discrete space like all possible sentences in a
-        natural language.
+        approximately (by Monte Carlo simulation).  Simulation is
+        necessary when the sample space is too large to sum or integrate
+        over in practice, like a continuous sample space in more than
+        about 4 dimensions or a large discrete space like all possible
+        sentences in a natural language.
 
         Approximating the expectations by sampling requires an instrumental
         distribution that should be close to the model for fast convergence.
@@ -733,4 +733,3 @@ def feature_sampler(vec_f, auxiliary_sampler):
         xs, log_q_xs = auxiliary_sampler()
         F = vec_f(xs)  # compute feature matrix from points
         yield F, log_q_xs, xs
-

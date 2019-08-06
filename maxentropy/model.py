@@ -6,21 +6,24 @@ from .maxentutils import evaluate_feature_matrix
 
 
 class Model(BaseModel):
-    """A maximum-entropy (exponential-form) model on a discrete sample
-    space.
+    """A maximum-entropy or minimum-divergence
+    (exponential-form) model on a discrete sample space.
 
     Parameters
     ----------
     features : either (a) list of functions or (b) array
 
         (a) list of functions: [f_1, ..., f_m]
+            Each function is expected to return either a vector or a
+            scalar, depending on the `vectorized` keyword argument
+            (below).
 
         (b) array: 2d array of shape (m, n)
-            Matrix representing evaluations of f_i(x) on all points
-            x_1,...,x_n in the sample space.
+            Matrix representing evaluations of features f_i(x) on all
+            points x_1,...,x_n in the sample space.
 
     samplespace : sequence
-        an enumerable sequence of values x in X that the model is
+        an enumerable (iterable and finite) sequence of values x in X that the model is
         defined over.
 
     vectorized : bool (default True)
@@ -32,8 +35,11 @@ class Model(BaseModel):
 
     Algorithms
     ----------
-    The algorithm can be 'CG', 'BFGS', 'LBFGSB', 'Powell', or
+    The optimization algorithm can be 'CG', 'BFGS', 'LBFGSB', 'Powell', or
     'Nelder-Mead'.
+
+    The surface is guaranteed to be convex, so optimization should be
+    relatively unproblematic with Model instances.
 
     The CG (conjugate gradients) method is the default; it is quite fast
     and requires only linear space in the number of parameters, (not
@@ -261,7 +267,7 @@ class Model(BaseModel):
                 return math.exp(np.dot(self.params, f_x) - logZ)
         return p
 
-    def showdist(self):
+    def show(self):
         """
         Output the distribution
         """
@@ -283,3 +289,5 @@ class Model(BaseModel):
             print("\t...")
             show_x_and_px_values(n - self.max_output_lines // 2, n)
 
+    # For backwards compatibility:
+    showdist = show
