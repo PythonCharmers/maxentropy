@@ -3,7 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import pickle
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
 
 import six
 import numpy as np
@@ -46,7 +46,7 @@ class BaseModel(six.with_metaclass(ABCMeta)):
     verbose : int, (default=0)
         Enable verbose output.
 
-    prior_log_probs : ndarray or None
+    priorlogprobs : ndarray or None
         Do you seek to minimize the KL divergence between the model and a
         prior density p_0?  If not, set this to None; then we maximize the
         entropy.  If so, set this to an array of the log probability densities
@@ -57,12 +57,12 @@ class BaseModel(six.with_metaclass(ABCMeta)):
     """
 
     def __init__(self,
-                 prior_log_probs,
+                 priorlogprobs=None,
                  algorithm='CG',
                  matrix_format='csr_matrix',
                  verbose=0):
 
-        self.prior_log_probs = prior_log_probs
+        self.priorlogprobs = priorlogprobs
         self.algorithm = algorithm
         if matrix_format in ('csr_matrix', 'csc_matrix', 'ndarray'):
             self.matrix_format = matrix_format
@@ -110,7 +110,7 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         # 'BigModel' objects only, but setting this here simplifies the code in
         # dual() and grad().
         self.external = None
-        self.external_prior_log_probs = None
+        self.external_priorlogprobs = None
 
 
     def fit(self, X, y=None):
@@ -133,6 +133,7 @@ class BaseModel(six.with_metaclass(ABCMeta)):
 
         """
 
+        X = np.atleast_2d(X)
         X = check_array(X)
         n_samples = X.shape[0]
         if n_samples != 1:
@@ -436,6 +437,13 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         else:
             return H
 
+    @abstractmethod
+    def log_norm_constant(self):
+        """Subclasses must implement this.
+        """
+
+    # Backwards compatibility:
+    log_norm_const = log_norm_constant
 
     def norm_constant(self):
         """Return the normalization constant, or partition function, for

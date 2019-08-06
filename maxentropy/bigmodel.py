@@ -313,11 +313,11 @@ class BigModel(BaseModel):
         else:
             e = self.external
             paramsdotF = innerprodtranspose(self.externalFs[e], self.params)
-            logv = paramsdotF - self.externallogprobs[e]
+            logv = paramsdotF - self.external_logprobs[e]
             # Are we minimizing KL divergence between the model and a prior
             # density p_0?
-            if self.externalpriorlogprobs is not None:
-                logv += self.externalpriorlogprobs[e]
+            if self.external_priorlogprobs is not None:
+                logv += self.external_priorlogprobs[e]
 
         # Good, we have our logv.  Now:
         self.logv = logv
@@ -643,8 +643,8 @@ class BigModel(BaseModel):
 
         self.testevery = testevery
         self.externalFs = F_list
-        self.externallogprobs = logprob_list
-        self.externalpriorlogprobs = priorlogprob_list
+        self.external_logprobs = logprob_list
+        self.external_priorlogprobs = priorlogprob_list
 
         # Store the dual and mean square error based on the internal and
         # external (test) samples.  (The internal sample is used

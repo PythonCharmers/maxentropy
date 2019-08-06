@@ -18,10 +18,9 @@
 """
 from __future__ import print_function
 
+# For Py2 backwards compatibility:
 from builtins import str
 from builtins import range
-__author__ =  'Ed Schofield'
-__version__=  '2.1'
 
 import maxentropy
 
@@ -40,7 +39,7 @@ def f2(x):
 
 f = [f0, f1, f2]
 
-model = maxentropy.Model(f, samplespace)
+model = maxentropy.Model(f, samplespace, vectorized=False)
 
 # Now set the desired feature expectations
 K = [1.0, 0.3, 0.5]

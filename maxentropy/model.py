@@ -143,7 +143,7 @@ class Model(BaseModel):
         if isinstance(self.F, np.matrix):
             self.F = np.asarray(self.F)
 
-    def log_partition_function(self):
+    def log_norm_constant(self):
         """Compute the log of the normalization constant (partition
         function) Z=sum_{x \in samplespace} p_0(x) exp(params . f(x)).
         The sample space must be discrete and finite.
