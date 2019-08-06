@@ -1,7 +1,7 @@
 """
 # maxentropy: Routines for fitting maximum entropy models.
 
-Copyright: Ed Schofield, 2003-2006 License: BSD-style (see LICENSE.txt in
+Copyright: Ed Schofield, 2003-2019 License: BSD-style (see LICENSE.txt in
 main source directory)
 
 Routines for fitting two kinds of models:
@@ -11,11 +11,11 @@ Routines for fitting two kinds of models:
 subject to linear expectation constraints.
 
 Contains two classes, one for small models, the other for large models.
-
 Here a 'small' model is one defined on a discrete sample space small
 enough to sum over in practice, whereas a 'large' model is on a sample
 space that is either continuous (possibly high-dimensional) or discrete
 but too large to sum over, requiring Monte Carlo simulation.
+
 
 ## Usage:
 
@@ -44,6 +44,7 @@ specified by calling setsampleFgen() with a user-supplied generator
 function that yields a matrix of features of a random sample and its log
 pdf values.
 
+
 ## Algorithms:
 
 The algorithm can be 'CG', 'BFGS', 'LBFGSB', 'Powell', or 'Nelder-Mead'.
@@ -61,6 +62,7 @@ The Powell algorithm doesn't require gradients.  For small models it is
 slow but robust.  For big models (where func and grad are simulated) with
 large variance in the function estimates, this may be less robust than
 the gradient-based algorithms.
+
 
 ## Minimizing KL divergence (cross entropy):
 
@@ -90,7 +92,7 @@ from .bigmodel import BigModel
 from . import maxentutils
 
 
-__all__ = ['BaseModel', 'model', 'conditionalmodel', 'BigModel']
+__all__ = ['BaseModel', 'Model', 'ConditionalModel', 'BigModel']
 
 # PEP0440 compatible formatted version, see:
 # https://www.python.org/dev/peps/pep-0440/
