@@ -1,9 +1,9 @@
 """
 ================================================
-Maximum entropy models (:mod:`scipy.maxentropy`)
+Maximum entropy models (:mod:`maxentropy`)
 ================================================
 
-.. currentmodule:: scipy.maxentropy
+.. currentmodule:: maxentropy
 
 Package content
 ===============
@@ -13,10 +13,10 @@ Models:
 .. autosummary::
    :toctree: generated/
 
-   model
-   bigmodel
-   basemodel
-   conditionalmodel
+   Model
+   BigModel
+   BaseModel
+   ConditionalModel
 
 Utilities:
 
@@ -45,15 +45,15 @@ Utilities:
 Usage information
 =================
 
-Contains two classes for fitting maximum entropy models (also known
-as "exponential family" models) subject to linear constraints on the
-expectations of arbitrary feature statistics.  One class, "model", is
-for small discrete sample spaces, using explicit summation. The other,
-"bigmodel", is for sample spaces that are either continuous (and
-perhaps high-dimensional) or discrete but too large to sum over, and
-uses importance sampling.
+Contains two classes for fitting maximum entropy models and minimum
+KL-divergence models (also known as "exponential family" models) subject
+to linear constraints on the expectations of arbitrary feature
+statistics.  One class, "Model", is for small discrete sample spaces,
+using explicit summation. The other, "BigModel", is for sample spaces
+that are either continuous (and perhaps high-dimensional) or discrete but
+too large to sum over, and uses importance sampling.
 
-The maximum entropy model has exponential form
+The resulting maximum entropy model always has exponential form
 
 ..
    p(x) = exp(theta^T f(x)) / Z(theta)
@@ -74,8 +74,6 @@ simulation.
 
 """
 
-# Copyright: Ed Schofield, 2003-2016
+# Copyright: Ed Schofield, 2003-2019
 # License: BSD-style (see LICENSE.txt in main source directory)
 
-postpone_import = 1
-depends = ['optimize']
