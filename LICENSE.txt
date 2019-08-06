@@ -7,7 +7,7 @@ license.
 maxentropy license
 ------------------
 
-Copyright (c) 2017 Ed Schofield
+Copyright (c) 2019 Ed Schofield
 
 All rights reserved.
 
