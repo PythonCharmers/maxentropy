@@ -25,11 +25,11 @@ Model expectations are computed either exactly or using Monte
 Carlo simulation, depending on the 'func' and 'grad' parameters
 passed to this function.
 
-For 'model' instances, expectations are computed exactly, by summing
+For 'Model' instances, expectations are computed exactly, by summing
 over the given sample space.  If the sample space is continuous or too
-large to iterate over, use the 'bigmodel' class instead.
+large to iterate over, use the 'BigModel' class instead.
 
-For 'bigmodel' instances, the model expectations are not computed
+For 'BigModel' instances, the model expectations are not computed
 exactly (by summing or integrating over a sample space) but
 approximately (by Monte Carlo simulation).  Simulation is necessary
 when the sample space is too large to sum or integrate over in
@@ -69,14 +69,14 @@ If you seek to maximize entropy, set `priorlogprobs` to `None`.
 
 If you seek to minimize KL divergence between the model and a
 prior density p_0, set `priorlogprobs` to an array of the log probability densities
-log(p_0(x)) for each x in the sample space.  For bigmodel objects, set this
+log(p_0(x)) for each x in the sample space.  For BigModel objects, set this
 to an array of the log probability densities log(p_0(x)) for each x in the
 random sample from the auxiliary distribution.
 
 By default, use the sample matrix sampleF to estimate the
 entropy dual and its gradient.  Otherwise, set self.external to
 the index of the sample feature matrix in the list self.externalFs.
-This applies to 'bigmodel' objects only, but setting this here
+This applies to 'BigModel' objects only, but setting this here
 simplifies the code in dual() and grad().
 
 """
