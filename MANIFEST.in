@@ -1,2 +1,0 @@
-include versioneer.py
-include maxentropy/_version.py
