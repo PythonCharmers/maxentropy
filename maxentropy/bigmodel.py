@@ -2,7 +2,7 @@ import types
 import math
 
 import numpy as np
-from scipy.misc import logsumexp
+from scipy.special import logsumexp
 
 from .basemodel import BaseModel
 from .maxentutils import innerprod, innerprodtranspose, evaluate_feature_matrix

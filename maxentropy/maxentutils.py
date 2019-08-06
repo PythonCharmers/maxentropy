@@ -6,8 +6,8 @@ routines or wrappers around matrices to allow the maxent module to
 manipulate ndarrays, scipy sparse matrices, and PySparse matrices a
 common interface.
 
-Perhaps the logsumexp() function belongs under the utils/ branch where other
-modules can access it more easily.
+Now the logsumexp() function, which was here, has been moved into
+scipy.special.
 
 Copyright: Ed Schofield, 2003-2006
 License: BSD-style (see LICENSE.txt in main source directory)
@@ -28,7 +28,7 @@ import cmath
 import numpy as np
 #from numpy import log, exp, asarray, ndarray, empty
 import scipy.sparse
-from scipy.misc import logsumexp
+from scipy.special import logsumexp
 
 
 def feature_sampler(vec_f, auxiliary_sampler):
@@ -49,12 +49,12 @@ def feature_sampler(vec_f, auxiliary_sampler):
 
         xs : list, 1d ndarray, or 2d matrix (n x d)
             We require len(xs) == n.
-            
+
 
     Yields
     ------
         tuples (F, log_q_xs, xs)
-        
+
         F : matrix (m x n)
         log_q_xs : as returned by auxiliary_sampler
         xs : as returned by auxiliary_sampler
@@ -158,11 +158,11 @@ def dictsampler(freq, size=None, return_probs=None):
 def auxiliary_sampler_scipy(auxiliary, dimensions=1, n=10**5):
     """
     Sample (once) from the given scipy.stats distribution
-    
+
     Parameters
     ----------
     auxiliary : a scipy.stats distribution object (rv_frozen)
-    
+
     Returns
     -------
     sampler : function

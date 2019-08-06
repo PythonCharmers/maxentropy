@@ -8,7 +8,7 @@ Copyright: Ed Schofield, 2003-2005
 
 from numpy.testing import assert_almost_equal, TestCase, run_module_suite
 from numpy import arange, log, exp, ones
-from scipy.maxentropy.maxentropy import logsumexp
+from scipy.special import logsumexp
 
 class TestMaxentropy(TestCase):
     """Test whether logsumexp() function correctly handles large

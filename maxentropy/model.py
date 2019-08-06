@@ -1,4 +1,4 @@
-from scipy.misc import logsumexp
+from scipy.special import logsumexp
 import numpy as np
 
 from .basemodel import BaseModel

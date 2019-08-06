@@ -8,7 +8,7 @@ from types import FunctionType, MethodType
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin, DensityMixin
 from sklearn.utils import check_array
-from scipy.misc import logsumexp
+from scipy.special import logsumexp
 from scipy.stats import entropy
 
 from maxentropy.maxentutils import evaluate_feature_matrix, feature_sampler
