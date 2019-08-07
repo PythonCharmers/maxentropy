@@ -95,12 +95,19 @@ from .basemodel import BaseModel
 from .model import Model
 from .conditionalmodel import ConditionalModel
 from .bigmodel import BigModel
+from .skmaxent import (FeatureTransformer,
+                       MinDivergenceModel,
+                       MCMinDivergenceModel)
 
-# For backwards compatibility:
-from . import utils as maxentutils
 
-
-__all__ = ['BaseModel', 'Model', 'ConditionalModel', 'BigModel']
+__all__ = ['BaseModel',
+           'Model',
+           'ConditionalModel',
+           'BigModel',
+           'utils',
+           'FeatureTransformer',
+           'MinDivergenceModel',
+           'MCMinDivergenceModel']
 
 # PEP0440 compatible formatted version, see:
 # https://www.python.org/dev/peps/pep-0440/
