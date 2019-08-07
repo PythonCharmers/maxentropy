@@ -26,7 +26,7 @@ from __future__ import print_function
 import sys
 
 import maxentropy
-from maxentropy.maxentutils import dictsample, sampleFgen
+from maxentropy.maxentutils import dictsampler
 
 
 try:
@@ -51,33 +51,47 @@ def f2(x):
 
 f = [f0, f1, f2]
 
-model = maxentropy.BigModel()
+m = len(f)
+
+# Define a uniform instrumental distribution for sampling.
+# This can be unnormalized.
+samplefreq = {e: 1 for e in samplespace}
+
+n = 10**5
+
+# Now create a function that will be used for importance sampling.
+# When called with no arguments it should return a tuple
+# (xs, log_q_xs) representing:
+
+#     xs: a sample x_1,...,x_n to use for importance sampling
+# 
+#     log_q_xs: an array of length n containing the (natural) log
+#               probability density (pdf or pmf) of each point under the
+#               auxiliary sampling distribution.
+
+auxiliary_sampler = dictsampler(samplefreq, size=n, return_probs='logprob')
+
+model = maxentropy.BigModel(f, auxiliary_sampler, vectorized=False)
+
+model.algorithm = algorithm
+#print("Generating an initial sample ...")
+#model.setsampleFgen(sampleFgen(samplefreq, f, n))
+
+model.verbose = True
 
 # Now set the desired feature expectations
 K = [1.0, 0.3, 0.5]
 
-# Define a uniform instrumental distribution for sampling
-samplefreq = {e: 1 for e in samplespace}
-
-n = 10**4
-m = 3
-
-# Now create a generator of features of random points and their logprobs
-
-print("Generating an initial sample ...")
-model.setsampleFgen(sampleFgen(samplefreq, f, n))
-
-model.verbose = True
-
 # Fit the model
 model.avegtol = 1e-4
-model.fit(K, algorithm=algorithm)
+model.fit(K)
 
 # Output the true distribution
 print("\nFitted model parameters are:\n" + str(model.params))
-smallmodel = maxentropy.Model(f, samplespace)
+smallmodel = maxentropy.Model(f, samplespace, vectorized=False)
 smallmodel.setparams(model.params)
 print("\nFitted distribution is:")
+breakpoint()
 p = smallmodel.probdist()
 for j, x in enumerate(smallmodel.samplespace):
     x = smallmodel.samplespace[j]

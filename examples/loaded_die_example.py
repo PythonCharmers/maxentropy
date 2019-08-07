@@ -43,11 +43,6 @@ model.fit(K)
 print("\nFitted model parameters are:\n" + str(model.params))
 print("\nFitted distribution is:")
 p = model.probdist()
-print(type(p))
-print(p.dtype)
-print(p[0])
-print(p[1])
-print(model.samplespace)
 
 for j, x in enumerate(model.samplespace):
     print("\tx = {0:}: p(x) = {1:0.3f}".format(x, p[j]))
@@ -56,7 +51,7 @@ for j, x in enumerate(model.samplespace):
 # Now show how well the constraints are satisfied:
 print()
 print("Desired constraints:")
-print("\tE(X) = 4.5")
+print("\tE f(X)   = [4.5]")
 print()
 print("Actual expectations under the fitted model:")
 print("\t\hat{X} = ", model.expectations())
