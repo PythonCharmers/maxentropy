@@ -26,7 +26,7 @@ from __future__ import print_function
 import sys
 
 import maxentropy
-from maxentropy.maxentutils import dictsampler
+from maxentropy.utils import dictsampler
 
 
 try:

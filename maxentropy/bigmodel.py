@@ -5,8 +5,8 @@ import numpy as np
 from scipy.special import logsumexp
 
 from .basemodel import BaseModel
-from .maxentutils import (innerprod, innerprodtranspose,
-                          evaluate_feature_matrix, feature_sampler)
+from .utils import (innerprod, innerprodtranspose,
+                    evaluate_feature_matrix, feature_sampler)
 
 
 class BigModel(BaseModel):

@@ -1,6 +1,6 @@
 import numpy as np
 
-from maxentropy.maxentutils import dictsample
+from maxentropy.utils import dictsample
 
 def test_dictsample():
 	samplespace = np.arange(6) + 1

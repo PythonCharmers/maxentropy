@@ -11,7 +11,7 @@ from sklearn.utils import check_array
 from scipy.special import logsumexp
 from scipy.stats import entropy
 
-from maxentropy.maxentutils import evaluate_feature_matrix, feature_sampler
+from maxentropy.utils import evaluate_feature_matrix, feature_sampler
 from maxentropy.model import BaseModel
 
 

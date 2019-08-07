@@ -89,7 +89,8 @@ from .model import Model
 from .conditionalmodel import ConditionalModel
 from .bigmodel import BigModel
 
-from . import maxentutils
+# For backwards compatibility:
+from . import utils as maxentutils
 
 
 __all__ = ['BaseModel', 'Model', 'ConditionalModel', 'BigModel']

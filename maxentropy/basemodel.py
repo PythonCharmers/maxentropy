@@ -11,7 +11,7 @@ from scipy import optimize
 from scipy.linalg import norm
 from sklearn.utils import check_array
 
-from maxentropy.maxentutils import DivergenceError
+from maxentropy.utils import DivergenceError
 
 
 class BaseModel(six.with_metaclass(ABCMeta)):

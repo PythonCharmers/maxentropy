@@ -2,7 +2,7 @@ from scipy.special import logsumexp
 import numpy as np
 
 from .basemodel import BaseModel
-from .maxentutils import evaluate_feature_matrix
+from .utils import evaluate_feature_matrix
 
 
 class Model(BaseModel):
