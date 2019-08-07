@@ -71,11 +71,13 @@ class BigModel(BaseModel):
     may be less robust than the gradient-based algorithms.
     """
 
-    def __init__(self, feature_functions, auxiliary_sampler, format='csc_matrix'):
+    def __init__(self, feature_functions, auxiliary_sampler, vectorized=True,
+                 format='csc_matrix'):
         super(BigModel, self).__init__()
 
         self.features = lambda xs: evaluate_feature_matrix(feature_functions,
                                                            xs,
+                                                           vectorized=vectorized,
                                                            format=format)
 
         # We allow auxiliary_sampler to be a function or method or simply the
