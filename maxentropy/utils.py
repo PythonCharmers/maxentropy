@@ -76,7 +76,7 @@ def feature_sampler(vec_f, auxiliary_sampler):
         yield F, log_q_xs, xs
 
 
-def dictsample(freq, size=None, return_probs=None):
+def dictsample(freq, size=None, return_probs='logprob'):
     """
     Create a sample of the given size from the specified discrete distribution.
 
@@ -89,7 +89,7 @@ def dictsample(freq, size=None, return_probs=None):
     size : a NumPy size parameter (like a shape tuple)
         Something passable to NumPy as a size argument to np.random.choice(...)
 
-    return_probs : int, optional (default 0)
+    return_probs : string or None
         None:     don't return pmf values at each sample point
         'prob':    return pmf values at each sample point
         'logprob': return log pmf values at each sample point
@@ -128,7 +128,7 @@ def dictsample(freq, size=None, return_probs=None):
         raise ValueError('return_probs must be "prob", "logprob", or None')
 
 
-def dictsampler(freq, size=None, return_probs=None):
+def dictsampler(freq, size=None, return_probs='logprob'):
     """
     A generator of samples of the given size from the specified discrete
     distribution.
@@ -142,7 +142,7 @@ def dictsampler(freq, size=None, return_probs=None):
     size : a NumPy size parameter (like a shape tuple)
         Something passable to NumPy as a size argument to np.random.choice(...)
 
-    return_probs : int, optional (default 0)
+    return_probs : string or None
         None:     don't return pmf values at each sample point
         'prob':    return pmf values at each sample point
         'logprob': return log pmf values at each sample point
