@@ -11,7 +11,8 @@ from .maxentutils import (innerprod, innerprodtranspose,
 
 class BigModel(BaseModel):
     """
-    A maximum-entropy (exponential-form) model on a large sample space.
+    A maximum-entropy or minimum-divergence (exponential-form) model on a
+    large sample space.
 
     The model expectations are not computed exactly (by summing or
     integrating over a sample space) but approximately (by Monte Carlo
