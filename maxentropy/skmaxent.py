@@ -3,7 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import math
-from types import FunctionType, MethodType
+import types
 
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin, DensityMixin
@@ -11,8 +11,8 @@ from sklearn.utils import check_array
 from scipy.special import logsumexp
 from scipy.stats import entropy
 
-from maxentropy.utils import evaluate_feature_matrix, feature_sampler
-from maxentropy.model import BaseModel
+from .utils import evaluate_feature_matrix, feature_sampler
+from .basemodel import BaseModel
 
 
 class FeatureTransformer(BaseEstimator, TransformerMixin):
@@ -71,6 +71,7 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
     def __init__(self,
                  features,
                  samplespace,
+                 *,
                  matrix_format='csr_matrix',
                  vectorized=True,
                  verbose=0):
@@ -118,7 +119,7 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
         -------
         (n x d) array of features.
         """
-        
+
         if isinstance(X, list):
             n_samples = len(X)
         else:
@@ -194,13 +195,16 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         space and return real values. This is likely to be slow down computing
         the features significantly.
 
-    prior_log_probs : None (default) or 1d ndarray
-        If not None, fitting the model minimizes Kullback-Leibler (KL)
-        divergence between the prior distribution p_0 whose log probabilities
-        are given by `prior_log_probs`. This is expected to be a 1d ndarray of
-        length n = len(samplespace).
+    prior_log_pdf : None (default) or function
+        Do you seek to minimize the KL divergence between the model and a
+        prior density p_0?  If not, set this to None; then we maximize
+        the Shannon information entropy H(p).
 
-        If None, fitting the model maximizes Shannon information entropy H(p).
+        If so, set this to a function that can take an array of values xs
+        and return an array of the log probability densities p_0(x) for
+        each x in the sample space.  For models involving simulation, set
+        this to a function that should return p_0(x) for each x in the
+        random sample from the auxiliary distribution.
 
         In both cases the minimization / maximization are done subject to the
         same constraints on feature expectations.
@@ -229,14 +233,15 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     def __init__(self,
                  features,
                  samplespace,
-                 prior_log_probs=None,
+                 *,
+                 prior_log_pdf=None,
                  vectorized=True,
                  matrix_format='csr_matrix',
                  algorithm='CG',
                  verbose=0):
 
         BaseModel.__init__(self,
-                prior_log_probs,
+                prior_log_pdf=prior_log_pdf,
                 matrix_format=matrix_format,
                 algorithm=algorithm,
                 verbose=verbose
@@ -329,7 +334,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 
     def divergence(self):
         """Return the Kullback-Leibler (KL) divergence between the model and
-        the prior p0 (whose log probabilities were specified when constructing
+        the prior p0 (whose log pdf was specified when constructing
         the model).
 
         This is defined as:
@@ -407,9 +412,11 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     """
     A minimum KL-divergence / maximum-entropy (exponential-form) model
-    on a large sample space requiring Monte Carlo simulation.
+    on a continuous or large discrete sample space requiring Monte Carlo
+    simulation.
 
-    Model expectations are computed using Monte Carlo simulation.
+    Model expectations are computed iteratively using importance
+    sampling.
 
     The model expectations are not computed exactly (by summing or
     integrating over a sample space) but approximately (by Monte Carlo
@@ -422,7 +429,8 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     distribution that should be close to the model for fast convergence.
     The tails should be fatter than the model.
 
-    This instrumental distribution is specified in the constructor.
+    This auxiliary or instrumental distribution is specified in the
+    constructor.
 
     Sets up a generator for feature matrices internally from a list of feature
     functions.
@@ -437,10 +445,11 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         If your feature functions are not vectorized, you can wrap them in
         calls to np.vectorize(f_i), but beware the performance overhead.
 
-    auxiliary_sampler : callable
+    auxiliary_sampler : callable or generator
 
-        Pass auxiliary_sampler as a function that will be used for importance
-        sampling. When called with no arguments it should return a tuple
+        Pass auxiliary_sampler as a function or generator that will be
+        used for importance sampling. When called with no arguments it
+        (or its __next__ method if a generator) should return a tuple
         (xs, log_q_xs) representing:
 
             xs: a sample x_1,...,x_n to use for importance sampling
@@ -454,19 +463,39 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     - matrix_format
     - verbose
 
+
+    Algorithms
+    ----------
+    The algorithm can be 'CG', 'BFGS', 'LBFGSB', 'Powell', or
+    'Nelder-Mead'.
+
+    The CG (conjugate gradients) method is the default; it is quite fast
+    and requires only linear space in the number of parameters, (not
+    quadratic, like Newton-based methods).
+
+    The BFGS (Broyden-Fletcher-Goldfarb-Shanno) algorithm is a
+    variable metric Newton method.  It is perhaps faster than the CG
+    method but requires O(N^2) instead of O(N) memory, so it is
+    infeasible for more than about 10^3 parameters.
+
+    The Powell algorithm doesn't require gradients.  For small models
+    it is slow but robust.  For big models (where func and grad are
+    simulated) with large variance in the function estimates, this
+    may be less robust than the gradient-based algorithms.
     """
 
     def __init__(self,
                  feature_functions,
                  auxiliary_sampler,
-                 prior_log_probs=None,
+                 *,
+                 prior_log_pdf=None,
                  vectorized=True,
                  matrix_format='csc_matrix',
                  algorithm='CG',
                  verbose=0):
 
         BaseModel.__init__(self,
-                prior_log_probs,
+                prior_log_pdf=prior_log_pdf,
                 matrix_format=matrix_format,
                 algorithm=algorithm,
                 verbose=verbose
@@ -474,16 +503,22 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 
         self.features = lambda xs: evaluate_feature_matrix(feature_functions,
                                                            xs,
+                                                           vectorized=vectorized,
                                                            format=matrix_format)
 
         # We allow auxiliary_sampler to be a function or method or simply the
         # .__next__ method of a generator (which, curiously, isn't of type
         # MethodType).
-        assert (isinstance(auxiliary_sampler, (FunctionType, MethodType))
+        assert (isinstance(auxiliary_sampler, (types.FunctionType,
+                                               types.MethodType,
+                                               types.GeneratorType))
                 or (hasattr(auxiliary_sampler, '__name__')
                     and auxiliary_sampler.__name__ == '__next__'))
 
-        self.auxiliary_sampler = auxiliary_sampler
+        if isinstance(auxiliary_sampler, types.GeneratorType):
+            self.auxiliary_sampler = auxiliary_sampler.__next__
+        else:
+            self.auxiliary_sampler = auxiliary_sampler
 
         self.samplegen = feature_sampler(self.features, self.auxiliary_sampler)
 
@@ -539,6 +574,10 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 
         # Assume the format is (F, lp, sample)
         (self.sample_F, self.sample_log_probs, self.sample) = output
+
+        # Evaluate the prior log probabilities on the sample (for KL div
+        # minimization)
+        self.priorlogprobs = self.prior_log_pdf(self.sample)
 
         # Check whether the number m of features and the dimensionalities are correct
         m, n = self.sample_F.shape
@@ -886,3 +925,4 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                 print("\n\t\t\tStored new minimum entropy dual: %f\n" % meandual)
 
 
+__all__ = ['FeatureTransformer', 'MinDivergenceModel', 'MCMinDivergenceModel']
