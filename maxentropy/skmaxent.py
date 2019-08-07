@@ -273,8 +273,8 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         log_p_dot = self.F.T.dot(self.params)
 
         # Are we minimizing KL divergence?
-        if self.prior_log_probs is not None:
-            log_p_dot += self.prior_log_probs
+        if self.priorlogprobs is not None:
+            log_p_dot += self.priorlogprobs
 
         self.logZ = logsumexp(log_p_dot)
         return self.logZ
@@ -309,8 +309,8 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         log_p_dot = self.F.T.dot(self.params)
 
         # Do we have a prior distribution p_0?
-        if self.prior_log_probs is not None:
-            log_p_dot += self.prior_log_probs
+        if self.priorlogprobs is not None:
+            log_p_dot += self.priorlogprobs
         if not hasattr(self, 'logZ'):
             # Compute the norm constant (quickly!)
             self.logZ = logsumexp(log_p_dot)
@@ -338,16 +338,16 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                         = \sum_i P(x_i) [ log P(x_i) - log Q(x_i) ]
         """
 
-        if self.prior_log_probs is None:
+        if self.priorlogprobs is None:
             raise ValueError('divergence cannot be computed because no prior '
                              'distribution was defined when creating the model')
 
         p = self.probdist()
         log_p = self.log_probdist()
-        divergence = np.sum(p * (log_p - self.prior_log_probs))
+        divergence = np.sum(p * (log_p - self.priorlogprobs))
 
         # To verify with SciPy:
-        # D = entropy(self.probdist(), np.exp(self.prior_log_probs))
+        # D = entropy(self.probdist(), np.exp(self.priorlogprobs))
         # assert np.allclose(D, divergence)
         return divergence
 
@@ -629,16 +629,16 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             logv = paramsdotF - self.sample_log_probs
             # Are we minimizing KL divergence between the model and a prior
             # density p_0?
-            if self.prior_log_probs is not None:
-                logv += self.prior_log_probs
+            if self.priorlogprobs is not None:
+                logv += self.priorlogprobs
         else:
             e = self.external
             paramsdotF = self.external_Fs[e].T.dot(self.params)
             logv = paramsdotF - self.external_logprobs[e]
             # Are we minimizing KL divergence between the model and a prior
             # density p_0?
-            if self.external_prior_log_probs is not None:
-                logv += self.external_prior_log_probs[e]
+            if self.external_priorlogprobs is not None:
+                logv += self.external_priorlogprobs[e]
 
         # Good, we have our logv.  Now:
         self.logv = logv
@@ -823,7 +823,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         self.testevery = testevery
         self.external_Fs = F_list
         self.external_logprobs = logprob_list
-        self.external_prior_log_probs = priorlogprob_list
+        self.external_priorlogprobs = priorlogprob_list
 
         # Store the dual and mean square error based on the internal and
         # external (test) samples.  (The internal sample is used
