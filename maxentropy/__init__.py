@@ -83,6 +83,13 @@ dual() and grad().
 
 """
 
+import warnings
+import re
+
+# Make sure that DeprecationWarning within this package always gets printed
+warnings.filterwarnings('always', category=DeprecationWarning,
+                        module='^{0}\.'.format(re.escape(__name__)))
+
 
 from .basemodel import BaseModel
 from .model import Model
