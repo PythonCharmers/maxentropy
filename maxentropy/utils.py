@@ -30,6 +30,17 @@ import scipy.sparse
 from scipy.special import logsumexp
 
 
+__all__ = ['feature_sampler',
+           'dictsample',
+           'dictsampler',
+           'auxiliary_sampler_scipy',
+           'evaluate_feature_matrix',
+           'innerprod',
+           'innerprodtranspose',
+           'DivergenceError']
+
+
+
 def feature_sampler(vec_f, auxiliary_sampler):
     """
     A generator function for tuples (F, log_q_xs, xs)
