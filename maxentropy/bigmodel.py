@@ -71,7 +71,11 @@ class BigModel(BaseModel):
     may be less robust than the gradient-based algorithms.
     """
 
-    def __init__(self, feature_functions, auxiliary_sampler, vectorized=True,
+    def __init__(self,
+                 feature_functions,
+                 auxiliary_sampler,
+                 *,
+                 vectorized=True,
                  format='csc_matrix'):
         super(BigModel, self).__init__()
 

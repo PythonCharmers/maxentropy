@@ -24,6 +24,7 @@ from builtins import range
 
 import maxentropy
 
+
 a_grave = u'\u00e0'
 
 samplespace = ['dans', 'en', a_grave, 'au cours de', 'pendant']

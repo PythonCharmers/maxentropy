@@ -55,8 +55,15 @@ class Model(BaseModel):
     simulated) with large variance in the function estimates, this
     may be less robust than the gradient-based algorithms.
     """
-    def __init__(self, features, samplespace, vectorized=True, format='csc_matrix', verbose=False):
+    def __init__(self,
+                 features,
+                 samplespace,
+                 *,
+                 vectorized=True,
+                 format='csc_matrix',
+                 verbose=False):
         super(Model, self).__init__()
+
         self.samplespace = samplespace
         self.max_output_lines = 20
         self.verbose = verbose
