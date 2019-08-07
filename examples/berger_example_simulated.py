@@ -91,7 +91,6 @@ print("\nFitted model parameters are:\n" + str(model.params))
 smallmodel = maxentropy.Model(f, samplespace, vectorized=False)
 smallmodel.setparams(model.params)
 print("\nFitted distribution is:")
-breakpoint()
 p = smallmodel.probdist()
 for j, x in enumerate(smallmodel.samplespace):
     x = smallmodel.samplespace[j]
