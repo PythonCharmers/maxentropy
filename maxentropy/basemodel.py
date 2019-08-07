@@ -149,9 +149,6 @@ class BaseModel(six.with_metaclass(ABCMeta)):
 
         self._check_features()
 
-        dual = self.dual
-        grad = self.grad
-
         # Sanity checks
         try:
             self.params
@@ -169,63 +166,70 @@ class BaseModel(six.with_metaclass(ABCMeta)):
 
         callback = self.log
 
-        if self.algorithm == 'CG':
-            retval = optimize.fmin_cg(dual, oldparams, grad, (), self.avegtol, \
-                                      maxiter=self.maxiter, full_output=1, \
-                                      disp=self.verbose, retall=0,
-                                      callback=callback)
-
-            (newparams, fopt, func_calls, grad_calls, warnflag) = retval
-
-        elif self.algorithm == 'LBFGSB':
-            if callback is not None:
-                raise NotImplementedError("L-BFGS-B optimization algorithm"
-                        " does not yet support callback functions for"
-                        " testing with an external sample")
-            retval = optimize.fmin_l_bfgs_b(dual, oldparams, \
-                        grad, args=(), bounds=self.bounds, pgtol=self.maxgtol,
-                        maxfun=self.maxfun)
-            (newparams, fopt, d) = retval
-            warnflag, func_calls = d['warnflag'], d['funcalls']
-            if self.verbose:
-                print(self.algorithm + " optimization terminated successfully.")
-                print("\tFunction calls: " + str(func_calls))
-                # We don't have info on how many gradient calls the LBFGSB
-                # algorithm makes
-
-        elif self.algorithm == 'BFGS':
-            retval = optimize.fmin_bfgs(dual, oldparams, \
-                                        grad, (), self.tol, \
-                                        maxiter=self.maxiter, full_output=1, \
-                                        disp=self.verbose, retall=0, \
-                                        callback=callback)
-
-            (newparams, fopt, gopt, Lopt, func_calls, grad_calls, warnflag) = retval
-
-        elif self.algorithm == 'Powell':
-            retval = optimize.fmin_powell(dual, oldparams, args=(), \
-                                   xtol=self.tol, ftol = self.tol, \
-                                   maxiter=self.maxiter, full_output=1, \
-                                   disp=self.verbose, retall=0, \
+        retval = optimize.minimize(self.dual, oldparams, args=(), method=self.algorithm,
+                                   jac=self.grad, tol=self.tol,
+                                   options={'maxiter': self.maxiter, 'disp': self.verbose},
                                    callback=callback)
+        newparams = retval.x
+        func_calls = retval.nfev
 
-            (newparams, fopt, direc, numiter, func_calls, warnflag) = retval
-            # fmin_powell seems to turn newparams into a 0d array
-            newparams = np.atleast_1d(newparams)
-
-        elif self.algorithm == 'Nelder-Mead':
-            retval = optimize.fmin(dual, oldparams, args=(), \
-                                   xtol=self.tol, ftol = self.tol, \
-                                   maxiter=self.maxiter, full_output=1, \
-                                   disp=self.verbose, retall=0, \
-                                   callback=callback)
-
-            (newparams, fopt, numiter, func_calls, warnflag) = retval
-
-        else:
-            raise AttributeError("the specified algorithm '" + str(self.algorithm)
-                    + "' is unsupported.  Options are 'CG', 'LBFGSB', "
-                    "'Nelder-Mead', 'Powell', and 'BFGS'")
+        # if self.algorithm == 'CG':
+        #     retval = optimize.fmin_cg(self.dual, oldparams, self.grad, (), self.avegtol, \
+        #                               maxiter=self.maxiter, full_output=1, \
+        #                               disp=self.verbose, retall=0,
+        #                               callback=callback)
+        #
+        #     (newparams, fopt, func_calls, grad_calls, warnflag) = retval
+        #
+        # elif self.algorithm == 'LBFGSB':
+        #     if callback is not None:
+        #         raise NotImplementedError("L-BFGS-B optimization algorithm"
+        #                 " does not yet support callback functions for"
+        #                 " testing with an external sample")
+        #     retval = optimize.fmin_l_bfgs_b(self.dual, oldparams, \
+        #                 self.grad, args=(), bounds=self.bounds, pgtol=self.maxgtol,
+        #                 maxfun=self.maxfun)
+        #     (newparams, fopt, d) = retval
+        #     warnflag, func_calls = d['warnflag'], d['funcalls']
+        #     if self.verbose:
+        #         print(self.algorithm + " optimization terminated successfully.")
+        #         print("\tFunction calls: " + str(func_calls))
+        #         # We don't have info on how many gradient calls the LBFGSB
+        #         # algorithm makes
+        #
+        # elif self.algorithm == 'BFGS':
+        #     retval = optimize.fmin_bfgs(self.dual, oldparams, \
+        #                                 self.grad, (), self.tol, \
+        #                                 maxiter=self.maxiter, full_output=1, \
+        #                                 disp=self.verbose, retall=0, \
+        #                                 callback=callback)
+        #
+        #     (newparams, fopt, gopt, Lopt, func_calls, grad_calls, warnflag) = retval
+        #
+        # elif self.algorithm == 'Powell':
+        #     retval = optimize.fmin_powell(self.dual, oldparams, args=(), \
+        #                            xtol=self.tol, ftol = self.tol, \
+        #                            maxiter=self.maxiter, full_output=1, \
+        #                            disp=self.verbose, retall=0, \
+        #                            callback=callback)
+        #
+        #     (newparams, fopt, direc, numiter, func_calls, warnflag) = retval
+        #     # fmin_powell seems to turn newparams into a 0d array
+        #     newparams = np.atleast_1d(newparams)
+        #
+        # elif self.algorithm == 'Nelder-Mead':
+        #     retval = optimize.fmin(self.dual, oldparams, args=(), \
+        #                            xtol=self.tol, ftol = self.tol, \
+        #                            maxiter=self.maxiter, full_output=1, \
+        #                            disp=self.verbose, retall=0, \
+        #                            callback=callback)
+        #
+        #     (newparams, fopt, numiter, func_calls, warnflag) = retval
+        #
+        # else:
+        #     raise AttributeError("the specified algorithm '" + str(self.algorithm)
+        #             + "' is unsupported.  Options are 'CG', 'LBFGSB', "
+        #             "'Nelder-Mead', 'Powell', and 'BFGS'")
 
         if np.any(self.params != newparams):
             self.setparams(newparams)
@@ -282,6 +286,9 @@ class BaseModel(six.with_metaclass(ABCMeta)):
 
         # Subsumes both small and large cases:
         L = self.log_norm_constant() - np.dot(self.params, self.K)
+
+        if np.isnan(L):
+            raise ValueError('Oops: the dual is nan! Debug me!')
 
         if self.verbose and self.external is None:
             print("  dual is ", L)
@@ -441,9 +448,6 @@ class BaseModel(six.with_metaclass(ABCMeta)):
     def log_norm_constant(self):
         """Subclasses must implement this.
         """
-
-    # Backwards compatibility:
-    log_norm_const = log_norm_constant
 
     def norm_constant(self):
         """Return the normalization constant, or partition function, for
