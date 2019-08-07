@@ -80,12 +80,17 @@ class BigModel(BaseModel):
                                                            vectorized=vectorized,
                                                            format=format)
 
-        # We allow auxiliary_sampler to be a function or method or simply the
+        # We allow auxiliary_sampler to be a callable or a generator
         # .__next__ method of a generator (which, curiously, isn't of MethodType).
-        assert (isinstance(auxiliary_sampler, (types.FunctionType, types.MethodType))
+        assert (isinstance(auxiliary_sampler, (types.FunctionType,
+                                               types.MethodType,
+                                               types.GeneratorType))
                 or (hasattr(auxiliary_sampler, '__name__') and auxiliary_sampler.__name__ == '__next__'))
 
-        self.auxiliary_sampler = auxiliary_sampler
+        if isinstance(auxiliary_sampler, types.GeneratorType):
+            self.auxiliary_sampler = auxiliary_sampler.__next__
+        else:
+            self.auxiliary_sampler = auxiliary_sampler
 
         self.samplegen = feature_sampler(self.features, self.auxiliary_sampler)
 
