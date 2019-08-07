@@ -92,9 +92,9 @@ warnings.filterwarnings('always', category=DeprecationWarning,
 
 
 from .basemodel import BaseModel
-from .model import Model
-from .conditionalmodel import ConditionalModel
-from .bigmodel import BigModel
+from .scipy.model import Model
+from .scipy.conditionalmodel import ConditionalModel
+from .scipy.bigmodel import BigModel
 from .skmaxent import (FeatureTransformer,
                        MinDivergenceModel,
                        MCMinDivergenceModel)
