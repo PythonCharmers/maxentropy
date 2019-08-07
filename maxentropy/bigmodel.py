@@ -435,28 +435,6 @@ class BigModel(BaseModel):
             self.varE = columnvariances(mus)
             self.mu = columnmeans(mus)
 
-
-    # def setsampleFgen(self, sampler):
-    #     """
-    #     Initialize the Monte Carlo sampler to use the supplied
-    #     generator of samples' features and log probabilities.  This is an
-    #     alternative to defining a sampler in terms of a (fixed size)
-    #     feature matrix sampleF and accompanying vector samplelogprobs of
-    #     log probabilities.
-
-    #     The output of next(sampler) can optionally be a 3-tuple (F, lp,
-    #     sample) instead of a 2-tuple (F, lp).  In this case the value
-    #     'sample' is then stored as a class variable self.sample.  This is
-    #     useful for inspecting the output and understanding the model
-    #     characteristics.
-
-    #     (An alternative was to supply a list of samplers,
-    #     sampler=[sampler0, sampler1, ..., sampler_{m-1}, samplerZ], one
-    #     for each feature and one for estimating the normalization
-    #     constant Z. But this code was unmaintained, and has now been
-    #     removed (but it's in Ed's CVS repository :).)
-    #     """
-
     def pdf(self, fx):
         """Returns the estimated density p_theta(x) at the point x with
         feature statistic fx = f(x).  This is defined as
