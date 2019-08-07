@@ -12,7 +12,7 @@ with io.open("maxentropy/__init__.py", "rt", encoding="utf8") as f:
 setup(
     name='maxentropy',
     version = '0.3.0',
-    packages=['maxentropy'],
+    packages=['maxentropy', 'maxentropy.scipy'],
     package_data={
         '': ['*.txt', '*.rst', '*.md'],
         'examples': ['*.py'],
