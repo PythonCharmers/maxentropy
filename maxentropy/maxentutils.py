@@ -9,7 +9,6 @@ common interface.
 Now the logsumexp() function, which was here, has been moved into
 scipy.special.
 
-Copyright: Ed Schofield, 2003-2006
 License: BSD-style (see LICENSE.txt in main source directory)
 
 """

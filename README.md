@@ -44,4 +44,5 @@ This package previously lived in SciPy
 (http://scipy.org) as ``scipy.maxentropy`` from versions v0.5 to v0.10. It was under-maintained and removed
 from SciPy v0.11.
 
-
+## Copyright
+(c) Ed Schofield, 2003-2019
