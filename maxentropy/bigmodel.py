@@ -5,7 +5,8 @@ import numpy as np
 from scipy.special import logsumexp
 
 from .basemodel import BaseModel
-from .maxentutils import innerprod, innerprodtranspose, evaluate_feature_matrix
+from .maxentutils import (innerprod, innerprodtranspose,
+                          evaluate_feature_matrix, feature_sampler)
 
 
 class BigModel(BaseModel):
@@ -706,30 +707,3 @@ class BigModel(BaseModel):
             self.bestparams = self.params
             if self.verbose:
                 print("\n\t\t\tStored new minimum entropy dual: %f\n" % meandual)
-
-
-def feature_sampler(vec_f, auxiliary_sampler):
-    """
-    A generator function for tuples (F, log_q_xs, xs)
-
-    Parameters
-    ----------
-    vec_f : function
-        Pass `vec_f` as a (vectorized) function that operates on a vector of
-        samples xs = {x1,...,xn} and returns a feature matrix (m x n), where m
-        is some number of feature components.
-
-    auxiliary_sampler : function
-        Pass `auxiliary_sampler` as a function that returns a tuple
-        (xs, log_q_xs) representing a sample to use for sampling (e.g.
-        importance sampling) on the sample space of the model.
-
-    Yields
-    ------
-        tuples (F, log_q_xs, xs)
-
-    """
-    while True:
-        xs, log_q_xs = auxiliary_sampler()
-        F = vec_f(xs)  # compute feature matrix from points
-        yield F, log_q_xs, xs
