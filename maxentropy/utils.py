@@ -76,7 +76,7 @@ def feature_sampler(vec_f, auxiliary_sampler):
         yield F, log_q_xs, xs
 
 
-def dictsample(freq, size=None, return_probs='logprob'):
+def dictsample(freq, size=(), return_probs='logprob'):
     """
     Create a sample of the given size from the specified discrete distribution.
 
@@ -104,7 +104,7 @@ def dictsample(freq, size=None, return_probs='logprob'):
     Example
     -------
     >>> freq = {'a': 10, 'b': 15, 'c': 20}
-    >>> dictsample(freq, size=1)
+    >>> dictsample(freq, size=10)
     array([c, b, b, b, b, b, c, b, b, b], dtype=object)
     """
     n = len(freq)
@@ -128,7 +128,7 @@ def dictsample(freq, size=None, return_probs='logprob'):
         raise ValueError('return_probs must be "prob", "logprob", or None')
 
 
-def dictsampler(freq, size=None, return_probs='logprob'):
+def dictsampler(freq, size=(), return_probs='logprob'):
     """
     A generator of samples of the given size from the specified discrete
     distribution.
@@ -157,7 +157,7 @@ def dictsampler(freq, size=None, return_probs='logprob'):
     Example
     -------
     >>> freq = {'a': 10, 'b': 15, 'c': 20}
-    >>> g = dictsample_gen(freq, size=1)
+    >>> g = dictsample_gen(freq, size=10)
     >>> next(g)
     array([c, b, b, b, b, b, c, b, b, b], dtype=object)
     """
