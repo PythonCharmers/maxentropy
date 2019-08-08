@@ -1,10 +1,5 @@
 # maxentropy: Maximum entropy and minimum divergence models in Python
 
-## Status
-
-The code is currently in pre-release while being refactored to use
-the `scikit-learn` estimator interface.
-
 ## Purpose
 
 This package helps you to construct a probability distribution
@@ -41,8 +36,9 @@ This is a good place to start: [Loaded die example (scikit-learn estimator API)]
 
 ## History
 This package previously lived in SciPy 
-(http://scipy.org) as ``scipy.maxentropy`` from versions v0.5 to v0.10. It was under-maintained and removed
-from SciPy v0.11.
+(http://scipy.org) as ``scipy.maxentropy`` from versions v0.5 to v0.10.
+It was under-maintained and removed from SciPy v0.11. It has since been
+resurrected and refactored to use the scikit-learn Estimator inteface.
 
 ## Copyright
 (c) Ed Schofield, 2003-2019
