@@ -91,7 +91,7 @@ warnings.filterwarnings('always', category=DeprecationWarning,
                         module='^{0}\.'.format(re.escape(__name__)))
 
 
-from .basemodel import BaseModel
+from .base import BaseModel
 from .scipy.model import Model
 from .scipy.conditionalmodel import ConditionalModel
 from .scipy.bigmodel import BigModel

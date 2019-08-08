@@ -12,7 +12,7 @@ from scipy.special import logsumexp
 from scipy.stats import entropy
 
 from .utils import evaluate_feature_matrix, feature_sampler
-from .basemodel import BaseModel
+from .base import BaseModel
 
 
 class FeatureTransformer(BaseEstimator, TransformerMixin):

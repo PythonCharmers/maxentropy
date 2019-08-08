@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import pickle
 from abc import ABCMeta, abstractmethod
+import types
 
 import six
 import numpy as np
