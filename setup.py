@@ -8,6 +8,13 @@ from setuptools import setup
 with io.open("maxentropy/__init__.py", "rt", encoding="utf8") as f:
     version = re.search(r"__version__ = '(.*?)'", f.read()).group(1)
 
+from os import path
+
+this_directory = path.abspath(path.dirname(__file__))
+
+with io.open(path.join(this_directory, 'README.md'), encoding='utf-8') as file:
+    long_description = file.read()
+
 
 setup(
     name='maxentropy',
@@ -21,6 +28,8 @@ setup(
     author='Ed Schofield',
     author_email='ed@pythoncharmers.com',
     description='Maximum entropy and minimum divergence models in Python',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     license='BSD',
     keywords='maximum-entropy minimum-divergence kullback-leibler-divergence KL-divergence bayesian-inference bayes scikit-learn sklearn prior prior-distribution',
     url='https://github.com/PythonCharmers/maxentropy.git',
