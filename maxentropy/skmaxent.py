@@ -241,7 +241,6 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                  verbose=0):
 
         BaseModel.__init__(self,
-                prior_log_pdf=prior_log_pdf,
                 matrix_format=matrix_format,
                 algorithm=algorithm,
                 verbose=verbose
@@ -259,6 +258,21 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         self.samplespace = samplespace
         self.vectorized = vectorized
         self.resetparams()
+
+        if prior_log_pdf is None:
+            self.priorlogprobs = None
+        else:
+            # It would be nice to validate that prior_log_pdf is a
+            # function. But a function passed into the numpy vectorize decorator
+            # is no longer an instance of FunctionType.
+            # Trust it's callable ...
+            # assert isinstance(prior_log_pdf, (types.FunctionType,
+            #                                   types.MethodType))
+            # TODO: ensure it's vectorized
+
+            self.prior_log_pdf = prior_log_pdf
+            lp = self.prior_log_pdf(self.samplespace)
+            self.priorlogprobs = np.reshape(lp, len(samplespace))
 
     def log_norm_constant(self):
         """Compute the log of the normalization term (partition
@@ -458,6 +472,20 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                       probability density (pdf or pmf) of each point under the
                       auxiliary sampling distribution.
 
+    prior_log_pdf : None (default) or function
+        Do you seek to minimize the KL divergence between the model and a
+        prior density p_0?  If not, set this to None; then we maximize
+        the Shannon information entropy H(p).
+
+        If so, set this to a function that can take an array of values xs
+        and return an array of the log probability densities p_0(x) for
+        each x in the sample space.  For models involving simulation, set
+        this to a function that should return p_0(x) for each x in the
+        random sample from the auxiliary distribution.
+
+        In both cases the minimization / maximization are done subject to the
+        same constraints on feature expectations.
+
     For other parameters, see notes in the BaseModel docstring:
     - algorithm
     - matrix_format
@@ -495,7 +523,6 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                  verbose=0):
 
         BaseModel.__init__(self,
-                prior_log_pdf=prior_log_pdf,
                 matrix_format=matrix_format,
                 algorithm=algorithm,
                 verbose=verbose
@@ -541,6 +568,21 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         # more external samples. If 0, don't test.
         self.testevery = 0
 
+        if prior_log_pdf is None:
+            self.priorlogprobs = None
+            self.prior_log_pdf = None
+        else:
+            # It would be nice to validate that prior_log_pdf is a
+            # function. But a function passed into the numpy vectorize decorator
+            # is no longer an instance of FunctionType.
+            # Trust it's callable ...
+            # assert isinstance(prior_log_pdf, (types.FunctionType,
+            #                                   types.MethodType))
+            # TODO: ensure it's vectorized
+
+            self.prior_log_pdf = prior_log_pdf
+            # self.priorlogprobs will be set by resample()
+
         self.resample()
 
     def _check_features(self):
@@ -577,7 +619,9 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 
         # Evaluate the prior log probabilities on the sample (for KL div
         # minimization)
-        self.priorlogprobs = self.prior_log_pdf(self.sample)
+        if self.prior_log_pdf is not None:
+            lp = self.prior_log_pdf(self.sample)
+            self.priorlogprobs = np.reshape(lp, len(self.sample))
 
         # Check whether the number m of features and the dimensionalities are correct
         m, n = self.sample_F.shape
@@ -786,14 +830,14 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             self.varE = columnvariances(mus)
             self.mu = columnmeans(mus)
 
-    def pdf(self, fx):
+    def pdf(self, fx, *, log_prior_x=None):
         """Returns the estimated density p_theta(x) at the point x with
         feature statistic fx = f(x).  This is defined as
             p_theta(x) = exp(theta.f(x)) / Z(theta),
         where Z is the estimated value self.norm_constant() of the partition
         function.
         """
-        return np.exp(self.log_pdf(fx))
+        return np.exp(self.log_pdf(fx, log_prior_x=log_prior_x))
 
     def pdf_function(self):
         """Returns the estimated density p_theta(x) as a function p(f)
@@ -803,12 +847,14 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         """
         log_Z_est = self.log_norm_constant()
 
-        def p(fx):
+        def p(fx, *, log_prior_x=None):
+            if log_prior_x is not None:
+                raise NotImplementedError('fix me!')
             return np.exp(fx.T.dot(self.params) - log_Z_est)
         return p
 
 
-    def log_pdf(self, fx, log_prior_x=None):
+    def log_pdf(self, fx, *, log_prior_x=None):
         """Returns the log of the estimated density p(x) = p_theta(x) at
         the point x.  If log_prior_x is None, this is defined as:
             log p(x) = theta.f(x) - log Z
@@ -833,7 +879,13 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             log_pdf = np.dot(self.params, fx) - log_Z_est
         else:
             log_pdf = fx.T.dot(self.params) - log_Z_est
-        if log_prior_x is not None:
+        if self.prior_log_pdf is not None:
+            # We expect log_prior_x to be passed in
+            if log_prior_x is None:
+                raise ValueError('It appears your model was fitted to minimize '
+                    'KL divergence but no log_prior_x value is being passed in. '
+                    'This would incorrectly calculate the pdf; it would not '
+                    'integrate to 1.')
             log_pdf += log_prior_x
         return log_pdf
 
