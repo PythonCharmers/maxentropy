@@ -61,6 +61,22 @@ def test_berger(algorithm='CG'):
     assert np.isclose(p[0] + p[1], target_expectations[1])
     assert np.isclose(p[0] + p[2], target_expectations[2])
 
+    # Output the distribution
+    print("\nFitted model parameters are:\n" + str(model.params))
+    print("\nFitted distribution is:")
+    for j, x in enumerate(model.samplespace):
+        print(f"\tx = {x:15s}: p(x) = {p[j]:.4f}")
+
+    # Now show how well the constraints are satisfied:
+    print()
+    print("Desired constraints:")
+    print("\tp['dans'] + p['en'] = 0.3")
+    print("\tp['dans'] + p['à']  = 0.5")
+    print()
+    print("Actual expectations under the fitted model:")
+    print("\tp['dans'] + p['en'] =", p[0] + p[1])
+    print("\tp['dans'] + p['à']  =", p[0] + p[2])
+
 
 def test_berger_simulated(algorithm='CG'):
     # Define a uniform instrumental distribution for sampling.
