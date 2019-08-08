@@ -328,7 +328,7 @@ def sample_wr(population, k):
 
 def evaluate_feature_matrix(feature_functions,
                             xs,
-                            vectorized=True,
+                            vectorized=False,
                             format='csc_matrix',
                             dtype=float,
                             verbose=False):
@@ -352,7 +352,7 @@ def evaluate_feature_matrix(feature_functions,
         2. a 1d array or sequence (e.g list) of observations xs[j]
            for j=1,...,n.
 
-    vectorized : bool (default True)
+    vectorized : bool (default False)
         If True, the feature functions f_i are assumed to be vectorized;
         then these will be passed all observations xs at once, in turn.
 
