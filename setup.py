@@ -25,6 +25,12 @@ setup(
         'examples': ['*.py'],
         'notebooks': ['*.ipynb']
     },
+    install_requires=[
+        'numpy',
+        'scipy',
+        'six',
+        'sklearn',
+    ],
     author='Ed Schofield',
     author_email='ed@pythoncharmers.com',
     description='Maximum entropy and minimum divergence models in Python',
