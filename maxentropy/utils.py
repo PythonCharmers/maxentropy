@@ -1,5 +1,5 @@
 """
-Utility routines for the maximum entropy module.
+Utility routines for the maxentropy package.
 
 Most of them are either Python replacements for the corresponding Fortran
 routines or wrappers around matrices to allow the maxent module to
@@ -10,7 +10,6 @@ Now the logsumexp() function, which was here, has been moved into
 scipy.special.
 
 License: BSD-style (see LICENSE.txt in main source directory)
-
 """
 
 # Future imports must come before any code in 2.5
@@ -18,8 +17,6 @@ from __future__ import division
 from __future__ import print_function
 
 from builtins import range
-__author__ = "Ed Schofield"
-__version__ = '2.0'
 
 import random
 import math
