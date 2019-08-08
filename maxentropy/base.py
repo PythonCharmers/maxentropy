@@ -47,23 +47,14 @@ class BaseModel(six.with_metaclass(ABCMeta)):
     verbose : int, (default=0)
         Enable verbose output.
 
-    priorlogprobs : ndarray or None
-        Do you seek to minimize the KL divergence between the model and a
-        prior density p_0?  If not, set this to None; then we maximize the
-        entropy.  If so, set this to an array of the log probability densities
-        p_0(x) for each x in the sample space.  For models involving
-        simulation, set this to an array of the log probability densities
-        p_0(x) for each x in the random sample from the auxiliary distribution.
-
     """
 
     def __init__(self,
-                 priorlogprobs=None,
+                 *,
                  algorithm='CG',
                  matrix_format='csr_matrix',
                  verbose=0):
 
-        self.priorlogprobs = priorlogprobs
         self.algorithm = algorithm
         if matrix_format in ('csr_matrix', 'csc_matrix', 'ndarray'):
             self.matrix_format = matrix_format
