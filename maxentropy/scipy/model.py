@@ -1,3 +1,5 @@
+import math
+
 from scipy.special import logsumexp
 import numpy as np
 
