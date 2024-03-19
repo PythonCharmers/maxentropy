@@ -1,7 +1,7 @@
 """
 # maxentropy: Routines for fitting maximum entropy models.
 
-Copyright: Ed Schofield, 2003-2019 License: BSD-style (see LICENSE.txt in
+Copyright: Ed Schofield, 2024 License: BSD-style (see LICENSE.md in
 main source directory)
 
 Routines for fitting two kinds of models:

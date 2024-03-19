@@ -75,5 +75,5 @@ simulation.
 """
 
 # Copyright: Ed Schofield, 2003-2019
-# License: BSD-style (see LICENSE.txt in main source directory)
+# License: BSD-style (see LICENSE.md in main source directory)
 

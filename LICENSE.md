@@ -1,13 +1,11 @@
-License
-=======
+# License
 
 maxentropy is distributed under a 3-clause ("Simplified" or "New") BSD
 license.
 
-maxentropy license
-------------------
+## maxentropy license
 
-Copyright (c) 2019 Ed Schofield
+Copyright (c) 2003-2024 Ed Schofield
 
 All rights reserved.
 
