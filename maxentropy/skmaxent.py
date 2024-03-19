@@ -18,7 +18,7 @@ from .base import BaseModel
 class FeatureTransformer(BaseEstimator, TransformerMixin):
     """
     Transform observations into a matrix of real-valued features
-    suitable for fitting e.g. a MaxEntPrior model.
+    suitable for fitting e.g. a MinDivergenceModel.
 
     The observations X can be given as a matrix or as a sequence of n Python
     objects representing points in some arbitrary sample space. For example,
@@ -138,7 +138,8 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     A discrete model with minimum Kullback-Leibler (KL) divergence from
     a given prior distribution subject to defined moment constraints.
 
-    This includes models of maximum entropy ("MaxEnt") as a special case.
+    This includes models of maximum entropy ("MaxEnt") as a special case, with
+    a flat prior distribution.
 
     This provides a principled method of assigning initial probabilities from
     prior information for Bayesian inference.
@@ -165,7 +166,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     - von Mises
 
     The information entropy of continuous probability distributions is
-    sensitive to the choice of probability measure, where as the divergence is not.
+    sensitive to the choice of probability measure, whereas the divergence is not.
 
     This makes continuous models easier to construct by minimizing divergence
     than by maximizing entropy.
@@ -260,6 +261,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         self.resetparams()
 
         if prior_log_pdf is None:
+            self.prior_log_pdf = None
             self.priorlogprobs = None
         else:
             # It would be nice to validate that prior_log_pdf is a
@@ -528,6 +530,8 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                 verbose=verbose
         )
 
+        self.feature_functions = feature_functions
+        self.vectorized = vectorized
         self.features = lambda xs: evaluate_feature_matrix(feature_functions,
                                                            xs,
                                                            vectorized=vectorized,

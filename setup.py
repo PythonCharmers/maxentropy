@@ -18,7 +18,7 @@ with io.open(path.join(this_directory, 'README.md'), encoding='utf-8') as file:
 
 setup(
     name='maxentropy',
-    version = '0.3.0',
+    version = '0.4.dev0',
     packages=['maxentropy', 'maxentropy.scipy'],
     package_data={
         '': ['*.txt', '*.rst', '*.md'],
@@ -29,7 +29,7 @@ setup(
         'numpy',
         'scipy',
         'six',
-        'sklearn',
+        'scikit-learn',
     ],
     author='Ed Schofield',
     author_email='ed@pythoncharmers.com',

@@ -12,12 +12,6 @@ scipy.special.
 License: BSD-style (see LICENSE.txt in main source directory)
 """
 
-# Future imports must come before any code in 2.5
-from __future__ import division
-from __future__ import print_function
-
-from builtins import range
-
 import random
 import math
 import cmath

@@ -1,4 +1,7 @@
-from .model import Model
+import numpy as np
+
+import maxentropy.utils as utils
+from maxentropy.scipy.model import Model
 
 
 class ConditionalModel(Model):
@@ -78,12 +81,14 @@ class ConditionalModel(Model):
         # argument to the ConditionalModel constructor could also be inferred
         # from the matrix dimensions.
 
-        super(ConditionalModel, self).__init__()
         self.F = F
         self.numcontexts = numcontexts
 
-        S = F.shape[1] // numcontexts          # number of sample point
+        S = F.shape[1] // numcontexts          # size of sample space
         assert isinstance(S, int)
+
+        self.samplespace = np.arange(S)
+        super(ConditionalModel, self).__init__(F, self.samplespace)
 
         # Set the empirical pmf:  p_tilde(w, x) = N(w, x) / \sum_c \sum_y N(c, y).
         # This is always a rank-2 beast with only one row (to support either
@@ -123,7 +128,7 @@ class ConditionalModel(Model):
         #     K_i = \sum_{w, x} q(w, x) f_i(w, x)
         #
         # This is independent of the model parameters.
-        self.K = flatten(innerprod(self.F, self.p_tilde.transpose()))
+        self.K = utils.flatten(utils.innerprod(self.F, self.p_tilde.transpose()))
         self.numsamplepoints = S
 
 
@@ -145,7 +150,7 @@ class ConditionalModel(Model):
 
         # Good, assume F has been precomputed
 
-        log_p_dot = innerprodtranspose(self.F, self.params)
+        log_p_dot = utils.innerprodtranspose(self.F, self.params)
 
         # Are we minimizing KL divergence?
         if self.priorlogprobs is not None:
@@ -223,7 +228,7 @@ class ConditionalModel(Model):
     #     probdist
 
 
-    def fit(self, algorithm='CG'):
+    def fit(self):
         """Fits the conditional maximum entropy model subject to the
         constraints
 
@@ -234,7 +239,7 @@ class ConditionalModel(Model):
         """
 
         # Call base class method
-        return model.fit(self, self.K, algorithm)
+        return super().fit(self.K)
 
 
     def expectations(self):
@@ -258,11 +263,7 @@ class ConditionalModel(Model):
             p[w*S : (w+1)*S] *= self.p_tilde_context[w]
 
         # Use the representation E_p[f(X)] = p . F
-        return flatten(innerprod(self.F, p))
-
-        # # We only override to modify the documentation string.  The code
-        # # is the same as for the model class.
-        # return model.expectations(self)
+        return utils.flatten(utils.innerprod(self.F, p))
 
 
     def logpmf(self):
@@ -281,7 +282,7 @@ class ConditionalModel(Model):
 
         numcontexts = self.numcontexts
         S = self.numsamplepoints
-        log_p_dot = flatten(innerprodtranspose(self.F, self.params))
+        log_p_dot = utils.flatten(utils.innerprodtranspose(self.F, self.params))
         # Do we have a prior distribution p_0?
         if self.priorlogprobs is not None:
             log_p_dot += self.priorlogprobs
