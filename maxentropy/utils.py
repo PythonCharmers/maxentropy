@@ -105,7 +105,7 @@ def feature_sampler(
     sampler: GeneratorType,
     *,
     matrix_format: str = "csc_matrix",
-    vectorized: bool = False,
+    vectorized: bool = True,
     dtype=float,
     omit_samples=False,
 ):
@@ -187,7 +187,7 @@ def evaluate_feature_matrix(
     feature_functions: list,
     xs: list | np.ndarray,
     *,
-    vectorized: bool = False,
+    vectorized: bool = True,
     matrix_format: bool = "csc_matrix",
     dtype=float,
     verbose: bool = False,
@@ -259,10 +259,18 @@ def evaluate_feature_matrix(
         if vectorized:
             F[:, i] = f_i(xs)
         else:
-            for j in range(n):
-                f_i_xj = f_i(xs[j])
-                if f_i_xj != 0:
-                    F[j, i] = f_i_xj
+            try:
+                for j in range(n):
+                    f_i_xj = f_i(xs[j])
+                    if f_i_xj != 0:
+                        F[j, i] = f_i_xj
+            except TypeError:
+                raise TypeError(
+                    "Failed to evaluating feature functions on individual "
+                    "samples in xs. Are your feature functions already vectorized "
+                    "(i.e. they don't take individual values x_j in xs)? If so, "
+                    "pass vectorized=True."
+                )
     if verbose:
         print("Finished computing features.")
 
@@ -292,6 +300,102 @@ def evaluate_feature_matrix(
 #             x = sample[j]
 #             F[i,j] = f_i(x)
 #     return F
+
+
+def dictsample(freq, size=(), return_probs="logprob"):
+    """
+    Create a sample of the given size from the specified discrete distribution.
+
+    Parameters
+    ----------
+    freq : a dictionary
+        A mapping from values x_j in the sample space to probabilities (or
+        unnormalized frequencies).
+
+    size : a NumPy size parameter (like a shape tuple)
+        Something passable to NumPy as a size argument to np.random.choice(...)
+
+    return_probs : string or None
+        None:     don't return pmf values at each sample point
+        'prob':    return pmf values at each sample point
+        'logprob': return log pmf values at each sample point
+
+    Returns
+    -------
+    Returns a sample of the given size from the keys of the given
+    dictionary `freq` with probabilities given according to the
+    values (normalized to 1). Optionally returns the probabilities
+    under the distribution of each observation.
+
+    Example
+    -------
+    >>> freq = {'a': 10, 'b': 15, 'c': 20}
+    >>> dictsample(freq, size=10)
+    array([c, b, b, b, b, b, c, b, b, b], dtype=object)
+    """
+    n = len(freq)
+    probs = np.fromiter(freq.values(), float)
+    probs /= probs.sum()
+    indices = np.random.choice(np.arange(n), size=size, p=probs)
+
+    labels = np.empty(n, dtype=object)
+    for i, label in enumerate(freq.keys()):
+        labels[i] = label
+    sample = labels[indices]
+
+    if return_probs is None:
+        return sample
+    sampleprobs = probs[indices]
+    if return_probs == "prob":
+        return sample, sampleprobs
+    elif return_probs == "logprob":
+        return sample, np.log(sampleprobs)
+    else:
+        raise ValueError('return_probs must be "prob", "logprob", or None')
+
+
+def dictsampler(freq, size=()):
+    """
+    A generator of samples of the given size from the specified discrete
+    distribution.
+
+    Parameters
+    ----------
+    freq : a dictionary
+        A mapping from values x_j in the sample space to probabilities (or
+        unnormalized frequencies).
+
+    size : a NumPy size parameter (like a shape tuple)
+        Something passable to NumPy as a size argument to np.random.choice(...)
+
+    return_probs : string or None
+        None:     don't return pmf values at each sample point
+        'prob':    return pmf values at each sample point
+        'logprob': return log pmf values at each sample point
+
+    Returns
+    -------
+    Returns a tuple
+        (xs, logprob_xs)
+
+    defined as:
+
+        xs : a sample of the given `size` from the keys of the given
+             dictionary `freq` with probabilities given according to its
+             values (normalized to 1).
+
+        logprob_xs : a vector of the log probabilities of each observation x in
+                     xs.
+
+    Example
+    -------
+    >>> freq = {'a': 10, 'b': 15, 'c': 20}
+    >>> g = dictsampler(freq, size=10)
+    >>> next(g)
+    array([c, b, b, b, b, b, c, b, b, b], dtype=object)
+    """
+    while True:
+        yield dictsample(freq, size=size, return_probs="logprob")
 
 
 def _test():
