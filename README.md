@@ -41,4 +41,4 @@ It was under-maintained and removed from SciPy v0.11. It has since been
 resurrected and refactored to use the scikit-learn Estimator inteface.
 
 ## Copyright
-(c) Ed Schofield, 2003-2019
+(c) Ed Schofield, 2024

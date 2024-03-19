@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "maxentropy"
+version = "0.4.0"
+description = "Maximum entropy and minimum divergence models in Python"
+authors = ["Ed Schofield <ed@pythoncharmers.com>"]
+license = "BSD"
+readme = "README.md"
+classifiers = [
+    'Development Status :: 4 - Beta',
+                 'Intended Audience :: Developers',
+                 'Intended Audience :: Science/Research',
+                 'License :: OSI Approved :: BSD License',
+                 'Operating System :: Microsoft :: Windows',
+                 'Operating System :: POSIX',
+                 'Operating System :: Unix',
+                 'Operating System :: MacOS',
+                 'Programming Language :: Python :: 3',
+                 'Topic :: Software Development',
+                 'Topic :: Scientific/Engineering']
+[tool.poetry.dependencies]
+python = "^3.6"
+numpy = "^1.26.4"
+scipy = "^1.12.0"
+scikit-learn = "^1.4.1.post1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.1.1"
+mkdocs = "^1.5.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
