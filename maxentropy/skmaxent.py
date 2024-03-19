@@ -68,20 +68,21 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
     >>> transformer.transform(X)
 
     """
-    def __init__(self,
-                 features,
-                 samplespace,
-                 *,
-                 matrix_format='csr_matrix',
-                 vectorized=False,
-                 verbose=0):
-        """
 
-        """
-        if matrix_format in ('csr_matrix', 'csc_matrix', 'ndarray'):
+    def __init__(
+        self,
+        features,
+        samplespace,
+        *,
+        matrix_format="csr_matrix",
+        vectorized=False,
+        verbose=0
+    ):
+        """ """
+        if matrix_format in ("csr_matrix", "csc_matrix", "ndarray"):
             self.matrix_format = matrix_format
         else:
-            raise ValueError('matrix format not understood')
+            raise ValueError("matrix format not understood")
         self.features = features
         self.samplespace = samplespace
         self.vectorized = vectorized
@@ -105,7 +106,6 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
         """
         return self
 
-
     def transform(self, X, y=None):
         """
         Apply features to a sequence of observations X
@@ -123,14 +123,13 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
         if isinstance(X, list):
             n_samples = len(X)
         else:
-            X = check_array(X, accept_sparse=['csr', 'csc'])
-            n_samples = X.shape[0]
+            X = check_array(X, accept_sparse=["csr", "csc"])
+            # n_samples = X.shape[0]
             # if not X.shape[1] == 1:
             #     raise ValueError('X must have only one column')
-        return evaluate_feature_matrix(self.features,
-                                       X,
-                                       vectorized=self.vectorized,
-                                       verbose=self.verbose).T
+        return evaluate_feature_matrix(
+            self.features, X, vectorized=self.vectorized, verbose=self.verbose
+        ).T
 
 
 class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
@@ -201,11 +200,15 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         prior density p_0?  If not, set this to None; then we maximize
         the Shannon information entropy H(p).
 
-        If so, set this to a function that can take an array of values xs
-        and return an array of the log probability densities p_0(x) for
-        each x in the sample space.  For models involving simulation, set
-        this to a function that should return p_0(x) for each x in the
-        random sample from the auxiliary distribution.
+        If so, set this to a function that can take an array of values X of
+        shape (k x m) and return an array of the log probability densities
+        p_0(x) under the prior p_0 for each (row vector) x in the sample space.
+        The output of calling this function, if it has shape (k, 1), will be
+        squeezed to be a vector of shape (k,).
+
+        For models involving simulation, set this to a function
+        that should return p_0(x) for each x in the random sample produced by
+        the auxiliary distribution.
 
         In both cases the minimization / maximization are done subject to the
         same constraints on feature expectations.
@@ -231,50 +234,45 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     >>> model.fit(X)
 
     """
-    def __init__(self,
-                 features,
-                 samplespace,
-                 *,
-                 prior_log_pdf=None,
-                 vectorized=False,
-                 matrix_format='csr_matrix',
-                 algorithm='CG',
-                 verbose=0):
 
-        BaseModel.__init__(self,
-                matrix_format=matrix_format,
-                algorithm=algorithm,
-                verbose=verbose
+    def __init__(
+        self,
+        feature_functions: list[types.FunctionType],
+        samplespace,
+        prior_log_pdf=None,
+        *,
+        vectorized=False,
+        matrix_format="csr_matrix",
+        algorithm="CG",
+        verbose=0
+    ):
+
+        BaseModel.__init__(
+            self,
+            feature_functions,
+            prior_log_pdf=prior_log_pdf,
+            vectorized=vectorized,
+            matrix_format=matrix_format,
+            algorithm=algorithm,
+            verbose=verbose,
         )
 
-        if isinstance(features, np.ndarray):
-            self.F = features
-        else:
-            self.F = evaluate_feature_matrix(features, samplespace,
-                                             format=matrix_format,
-                                             vectorized=vectorized,
-                                             verbose=verbose)
-            self.features = features
+        # TODO: reinstate this in the future for a large speedup opportunity if
+        # there are many functions:
+        # if isinstance(features, np.ndarray):
+        #     self.F = features
+        # else:
+
+        self.F = evaluate_feature_matrix(
+            feature_functions,
+            samplespace,
+            matrix_format=matrix_format,
+            vectorized=vectorized,
+            verbose=verbose,
+        )
 
         self.samplespace = samplespace
-        self.vectorized = vectorized
         self.resetparams()
-
-        if prior_log_pdf is None:
-            self.prior_log_pdf = None
-            self.priorlogprobs = None
-        else:
-            # It would be nice to validate that prior_log_pdf is a
-            # function. But a function passed into the numpy vectorize decorator
-            # is no longer an instance of FunctionType.
-            # Trust it's callable ...
-            # assert isinstance(prior_log_pdf, (types.FunctionType,
-            #                                   types.MethodType))
-            # TODO: ensure it's vectorized
-
-            self.prior_log_pdf = prior_log_pdf
-            lp = self.prior_log_pdf(self.samplespace)
-            self.priorlogprobs = np.reshape(lp, len(samplespace))
 
     def log_norm_constant(self):
         """Compute the log of the normalization term (partition
@@ -282,16 +280,16 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         The sample space must be discrete and finite.
         """
         # See if it's been precomputed
-        if hasattr(self, 'logZ_'):
+        if hasattr(self, "logZ_"):
             return self.logZ_
 
         # Has F = {f_i(x_j)} been precomputed?
-        if not hasattr(self, 'F'):
+        if not hasattr(self, "F"):
             raise AttributeError("first create a feature matrix F")
 
         # Good, assume the feature matrix exists
-        # Calculate the dot product of F^T and the parameter vector:
-        log_p_dot = self.F.T.dot(self.params)
+        # Calculate the dot product of F and the parameter vector:
+        log_p_dot = self.F.dot(self.params)
 
         # Are we minimizing KL divergence?
         if self.priorlogprobs is not None:
@@ -300,17 +298,20 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         self.logZ = logsumexp(log_p_dot)
         return self.logZ
 
-    def expectations(self):
+    def feature_expectations(self):
         """The vector E_p[f(X)] under the model p_theta of the vector of
         feature functions f_i over the sample space.
         """
         # For discrete models, use the representation E_p[f(X)] = p . F
-        if not hasattr(self, 'F'):
+        if not hasattr(self, "F"):
             raise AttributeError("first set the feature matrix F")
 
         # A pre-computed matrix of features exists
         p = self.probdist()
-        return self.F.dot(p)
+        return self.F.T.dot(p)
+
+    # For compatibility with older versions:
+    expectations = feature_expectations
 
     def log_probdist(self):
         """Returns an array indexed by integers representing the
@@ -319,7 +320,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         parameter vector self.params).
         """
         # Have the features already been computed and stored?
-        if not hasattr(self, 'F'):
+        if not hasattr(self, "F"):
             raise AttributeError("first set the feature matrix F")
 
         # Yes:
@@ -327,16 +328,15 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         #      = exp[log p_dot(x) - logsumexp{log(p_dot(y))}]
 
         # Calculate the dot product of F^T and the parameter vector:
-        log_p_dot = self.F.T.dot(self.params)
+        log_p_dot = self.F.dot(self.params)
 
         # Do we have a prior distribution p_0?
         if self.priorlogprobs is not None:
             log_p_dot += self.priorlogprobs
-        if not hasattr(self, 'logZ'):
+        if not hasattr(self, "logZ"):
             # Compute the norm constant (quickly!)
             self.logZ = logsumexp(log_p_dot)
         return log_p_dot - self.logZ
-
 
     def probdist(self):
         """Returns an array indexed by integers representing the values
@@ -360,8 +360,10 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         """
 
         if self.priorlogprobs is None:
-            raise ValueError('divergence cannot be computed because no prior '
-                             'distribution was defined when creating the model')
+            raise ValueError(
+                "divergence cannot be computed because no prior "
+                "distribution was defined when creating the model"
+            )
 
         p = self.probdist()
         log_p = self.log_probdist()
@@ -373,26 +375,29 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         return divergence
 
     def _check_features(self):
-        """Validate whether the feature matrix has been set properly.
-        """
+        """Validate whether the feature matrix has been set properly."""
         # Ensure the feature matrix for the sample space has been set
-        if not hasattr(self, 'F'):
-            raise AttributeError('missing feature matrix')
+        if not hasattr(self, "F"):
+            raise AttributeError("missing feature matrix")
         assert self.F.ndim == 2
         try:
-            assert self.F.shape[1] == len(self.samplespace)
-        except:
-            raise AttributeError('the feature matrix is incompatible with the sample space. The number of columns must equal len(self.samplespace)')
+            assert self.F.shape[0] == len(self.samplespace)
+        except Exception:
+            raise AttributeError(
+                "the feature matrix is incompatible with the sample space. The number of columns must equal len(self.samplespace)"
+            )
 
         blank = False
-        if hasattr(self.F, 'nnz'):
+        if hasattr(self.F, "nnz"):
             if self.F.nnz == 0:
                 blank = True
         else:
             if (self.F == 0).all():
                 blank = True
         if blank:
-            raise ValueError('the feature matrix is zero. Check whether your feature functions are vectorized and, if not, pass vectorized=False')
+            raise ValueError(
+                "the feature matrix is zero. Check whether your feature functions are vectorized and, if not, pass vectorized=False"
+            )
 
         # Watch out: if self.F is a dense NumPy matrix, its dot product
         # with a 1d parameter vector comes out as a 2d array, whereas if
@@ -406,6 +411,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         """
         Output the distribution
         """
+
         def show_x_and_px_values(n1, n2):
             """
             Output values x and their probabilities p_n from n=n1 to n=n2
@@ -454,19 +460,19 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     Parameters
     ----------
     feature_functions : list of functions
-        Each feature function must operate on a vector of samples xs =
-        {x1,...,xn}, either real data or samples generated by the auxiliary
-        sampler.
+        Each feature function f_i (from i=1 to i=m) must operate on a vector of
+        samples xs = {x1,...,xn}, either real data or samples generated by the
+        auxiliary sampler.
 
         If your feature functions are not vectorized, you can wrap them in
         calls to np.vectorize(f_i), but beware the performance overhead.
 
-    auxiliary_sampler : callable or generator
+    auxiliary_sampler : generator
 
-        Pass auxiliary_sampler as a function or generator that will be
-        used for importance sampling. When called with no arguments it
-        (or its __next__ method if a generator) should return a tuple
-        (xs, log_q_xs) representing:
+        Pass auxiliary_sampler as a generator that will be used for importance
+        sampling. Calling `next(auxiliary_sampler)` should return a tuple
+            (xs, log_q_xs)
+        representing:
 
             xs: a sample x_1,...,x_n to use for importance sampling
 
@@ -514,50 +520,47 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     may be less robust than the gradient-based algorithms.
     """
 
-    def __init__(self,
-                 feature_functions,
-                 auxiliary_sampler,
-                 *,
-                 prior_log_pdf=None,
-                 vectorized=False,
-                 matrix_format='csc_matrix',
-                 algorithm='CG',
-                 verbose=0):
+    def __init__(
+        self,
+        feature_functions,
+        auxiliary_sampler,
+        prior_log_pdf=None,
+        *,
+        vectorized=False,
+        matrix_format="csc_matrix",
+        algorithm="CG",
+        verbose=0
+    ):
 
-        BaseModel.__init__(self,
-                matrix_format=matrix_format,
-                algorithm=algorithm,
-                verbose=verbose
+        BaseModel.__init__(
+            self,
+            feature_functions=feature_functions,
+            prior_log_pdf=prior_log_pdf,
+            vectorized=vectorized,
+            matrix_format=matrix_format,
+            algorithm=algorithm,
+            verbose=verbose,
+        )
+        self.auxiliary_sampler = auxiliary_sampler
+
+        # We require that auxiliary_sampler be a generator:
+        assert isinstance(auxiliary_sampler, types.GeneratorType)
+
+        self.sampleFgen = feature_sampler(
+            feature_functions,
+            auxiliary_sampler,
+            vectorized=vectorized,
+            matrix_format=matrix_format,
         )
 
-        self.feature_functions = feature_functions
-        self.vectorized = vectorized
-        self.features = lambda xs: evaluate_feature_matrix(feature_functions,
-                                                           xs,
-                                                           vectorized=vectorized,
-                                                           format=matrix_format)
-
-        # We allow auxiliary_sampler to be a function or method or simply the
-        # .__next__ method of a generator (which, curiously, isn't of type
-        # MethodType).
-        assert (isinstance(auxiliary_sampler, (types.FunctionType,
-                                               types.MethodType,
-                                               types.GeneratorType))
-                or (hasattr(auxiliary_sampler, '__name__')
-                    and auxiliary_sampler.__name__ == '__next__'))
-
-        if isinstance(auxiliary_sampler, types.GeneratorType):
-            self.auxiliary_sampler = auxiliary_sampler.__next__
-        else:
-            self.auxiliary_sampler = auxiliary_sampler
-
-        self.samplegen = feature_sampler(self.features, self.auxiliary_sampler)
-
-        # Number of sample matrices to generate and use to estimate E and logZ
+        # Number of sample matrices to generate and use each iteration to estimate E and logZ.
+        # Normally this will be 1. Setting this > 1 would be much slower but could offer
+        # more accurate estimates toward the end of the fitting process, when we
+        # are near convergence.
         self.matrixtrials = 1
 
         # Store the lowest dual estimate observed so far in the fitting process
-        self.bestdual = float('inf')
+        self.bestdual = float("inf")
 
         # Whether or not to use the same sample for all iterations
         self.staticsample = True
@@ -572,21 +575,6 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         # more external samples. If 0, don't test.
         self.testevery = 0
 
-        if prior_log_pdf is None:
-            self.priorlogprobs = None
-            self.prior_log_pdf = None
-        else:
-            # It would be nice to validate that prior_log_pdf is a
-            # function. But a function passed into the numpy vectorize decorator
-            # is no longer an instance of FunctionType.
-            # Trust it's callable ...
-            # assert isinstance(prior_log_pdf, (types.FunctionType,
-            #                                   types.MethodType))
-            # TODO: ensure it's vectorized
-
-            self.prior_log_pdf = prior_log_pdf
-            # self.priorlogprobs will be set by resample()
-
         self.resample()
 
     def _check_features(self):
@@ -594,8 +582,8 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         Validation of whether the feature matrix has been set properly
         """
         # Ensure the sample matrix has been set
-        if not (hasattr(self, 'sample_F') and hasattr(self, 'sample_log_probs')):
-            raise AttributeError('first specify a sample feature matrix')
+        if not (hasattr(self, "sample_F") and hasattr(self, "sample_log_probs")):
+            raise AttributeError("first specify a sample feature matrix")
 
     def resample(self):
         """
@@ -608,18 +596,15 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 
         # First delete the existing sample matrix to save memory
         # This matters, since these can be very large
-        if hasattr(self, 'sample_F'):
+        if hasattr(self, "sample_F"):
             del self.sample_F
-        if hasattr(self, 'sample_log_probs'):
+        if hasattr(self, "sample_log_probs"):
             del self.sample_log_probs
-        if hasattr(self, 'sample'):
+        if hasattr(self, "sample"):
             del self.sample
 
-        # Now generate a new sample
-        output = next(self.samplegen)
-
-        # Assume the format is (F, lp, sample)
-        (self.sample_F, self.sample_log_probs, self.sample) = output
+        # Now generate a new sample. Assume the format is (F, lp, sample):
+        (self.sample_F, self.sample_log_probs, self.sample) = next(self.sampleFgen)
 
         # Evaluate the prior log probabilities on the sample (for KL div
         # minimization)
@@ -628,7 +613,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             self.priorlogprobs = np.reshape(lp, len(self.sample))
 
         # Check whether the number m of features and the dimensionalities are correct
-        m, n = self.sample_F.shape
+        n, m = self.sample_F.shape
         try:
             # The number of features is defined as the length of
             # self.params, so first check if it exists:
@@ -637,13 +622,20 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             self.params = np.zeros(m, float)
         else:
             if m != len(self.params):
-                raise ValueError("the sample feature generator returned"
-                                  " a feature matrix of incorrect dimensions."
-                                  " The number of rows must equal the number of model parameters.")
+                raise ValueError(
+                    "the sample feature generator returned"
+                    " a feature matrix of incorrect dimensions."
+                    " The number of rows must equal the number of model parameters."
+                )
 
         # Check the dimensionality of sample_log_probs is correct. It should be 1d, of length n
-        if not (isinstance(self.sample_log_probs, np.ndarray) and self.sample_log_probs.shape == (n,)):
-            raise ValueError('Your sampler appears to be spitting out logprobs of the wrong dimensionality.')
+        if not (
+            isinstance(self.sample_log_probs, np.ndarray)
+            and self.sample_log_probs.shape == (n,)
+        ):
+            raise ValueError(
+                "Your sampler appears to be spitting out logprobs of the wrong dimensionality."
+            )
 
         if self.verbose >= 3:
             print("(done)")
@@ -657,7 +649,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         the current sample matrix F.
         """
         # First see whether logZ has been precomputed
-        if hasattr(self, 'logZapprox'):
+        if hasattr(self, "logZapprox"):
             return self.logZapprox
 
         # Compute log v = log [p_dot(s_j)/aux_dist(s_j)]   for
@@ -670,18 +662,19 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         self.logZapprox = logsumexp(logv) - math.log(n)
         return self.logZapprox
 
-    def expectations(self):
+    def feature_expectations(self):
         """
-        Estimate the feature expectations E_p[f(X)] under the current
-        model p = p_theta using the given sample feature matrix.
+        Estimate the feature expectations (generalized "moments") E_p[f(X)]
+        under the current model p = p_theta using the given sample feature
+        matrix.
 
         If self.staticsample is True, uses the current feature matrix
         self.sample_F.  If self.staticsample is False or self.matrixtrials
         is > 1, draw one or more sample feature matrices F afresh using
-        the generator function samplegen().
+        the generator function self.sampleFgen().
         """
         # See if already computed
-        if hasattr(self, 'mu'):
+        if hasattr(self, "mu"):
             return self.mu
         self.estimate()
         return self.mu
@@ -705,14 +698,14 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                unnormalized pdf value of the point x_j under the current model.
         """
         # First see whether logv has been precomputed
-        if hasattr(self, 'logv'):
+        if hasattr(self, "logv"):
             return self.logv
 
         # Compute log v = log [p_dot(s_j)/aux_dist(s_j)]   for
         # j=1,...,n=|sample| using a precomputed matrix of sample
         # features.
         if self.external is None:
-            paramsdotF = self.sample_F.T.dot(self.params)
+            paramsdotF = self.sample_F.dot(self.params)
             logv = paramsdotF - self.sample_log_probs
             # Are we minimizing KL divergence between the model and a prior
             # density p_0?
@@ -720,7 +713,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                 logv += self.priorlogprobs
         else:
             e = self.external
-            paramsdotF = self.external_Fs[e].T.dot(self.params)
+            paramsdotF = self.external_Fs[e].dot(self.params)
             logv = paramsdotF - self.external_logprobs[e]
             # Are we minimizing KL divergence between the model and a prior
             # density p_0?
@@ -808,20 +801,20 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 
             logu = logv - logZ
             if self.external is None:
-                averages =  self.sample_F.dot(np.exp(logu))
+                averages = self.sample_F.T.dot(np.exp(logu))
             else:
-                averages = self.external_Fs[self.external].dot(np.exp(logu))
+                averages = self.external_Fs[self.external].T.dot(np.exp(logu))
             averages /= n
             mus.append(averages)
 
         # Now we have T=trials vectors of the sample means.  If trials > 1,
         # estimate st dev of means and confidence intervals
-        ttrials = len(mus)   # total number of trials performed
+        ttrials = len(mus)  # total number of trials performed
         if ttrials == 1:
             self.mu = mus[0]
             self.logZapprox = logZs[0]
             try:
-                del self.varE       # make explicit that this has no meaning
+                del self.varE  # make explicit that this has no meaning
             except AttributeError:
                 pass
         else:
@@ -834,7 +827,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             self.varE = columnvariances(mus)
             self.mu = columnmeans(mus)
 
-    def pdf(self, fx, *, log_prior_x=None):
+    def pdf_from_features(self, fx, *, log_prior_x=None):
         """Returns the estimated density p_theta(x) at the point x with
         feature statistic fx = f(x).  This is defined as
             p_theta(x) = exp(theta.f(x)) / Z(theta),
@@ -853,18 +846,18 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
 
         def p(fx, *, log_prior_x=None):
             if log_prior_x is not None:
-                raise NotImplementedError('fix me!')
-            return np.exp(fx.T.dot(self.params) - log_Z_est)
+                raise NotImplementedError("fix me!")
+            return np.exp(fx.dot(self.params) - log_Z_est)
+
         return p
 
-
-    def log_pdf(self, fx, *, log_prior_x=None):
+    def log_pdf_from_features(self, fx, *, log_prior_x=None):
         """Returns the log of the estimated density p(x) = p_theta(x) at
         the point x.  If log_prior_x is None, this is defined as:
             log p(x) = theta.f(x) - log Z
         where f(x) is given by the (m x 1) array fx.
 
-        If, instead, fx is a 2-d (m x n) array, this function interprets
+        If, instead, fx is a 2-d (n x m) array, this function interprets
         each of its rows j=0,...,n-1 as a feature vector f(x_j), and
         returns an array containing the log pdf value of each point x_j
         under the current model.
@@ -882,14 +875,16 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         if len(fx.shape) == 1:
             log_pdf = np.dot(self.params, fx) - log_Z_est
         else:
-            log_pdf = fx.T.dot(self.params) - log_Z_est
+            log_pdf = fx.dot(self.params) - log_Z_est
         if self.prior_log_pdf is not None:
             # We expect log_prior_x to be passed in
             if log_prior_x is None:
-                raise ValueError('It appears your model was fitted to minimize '
-                    'KL divergence but no log_prior_x value is being passed in. '
-                    'This would incorrectly calculate the pdf; it would not '
-                    'integrate to 1.')
+                raise ValueError(
+                    "It appears your model was fitted to minimize "
+                    "KL divergence but no log_prior_x value is being passed in. "
+                    "This would incorrectly calculate the pdf; it would not "
+                    "integrate to 1."
+                )
             log_pdf += log_prior_x
         return log_pdf
 
@@ -961,17 +956,21 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         self.external = None
         self.clearcache()
 
-        meandual = np.average(dualapprox,axis=0)
+        meandual = np.average(dualapprox, axis=0)
         self.external_duals[self.iters] = dualapprox
         self.external_gradnorms[self.iters] = gradnorms
 
         if self.verbose:
-            print("** Mean (unregularized) dual estimate from the %d" \
-                  " external samples is %f" % \
-                 (len(self.external_Fs), meandual))
-            print("** Mean mean square error of the (unregularized) feature" \
-                    " expectation estimates from the external samples =" \
-                    " mean(|| \hat{\mu_e} - k ||,axis=0) =", np.average(gradnorms,axis=0))
+            print(
+                "** Mean (unregularized) dual estimate from the %d"
+                " external samples is %f" % (len(self.external_Fs), meandual)
+            )
+            print(
+                "** Mean mean square error of the (unregularized) feature"
+                " expectation estimates from the external samples ="
+                " mean(|| \hat{\mu_e} - k ||,axis=0) =",
+                np.average(gradnorms, axis=0),
+            )
         # Track the parameter vector params with the lowest mean dual estimate
         # so far:
         if meandual < self.bestdual:
@@ -981,4 +980,4 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                 print("\n\t\t\tStored new minimum entropy dual: %f\n" % meandual)
 
 
-__all__ = ['FeatureTransformer', 'MinDivergenceModel', 'MCMinDivergenceModel']
+__all__ = ["FeatureTransformer", "MinDivergenceModel", "MCMinDivergenceModel"]

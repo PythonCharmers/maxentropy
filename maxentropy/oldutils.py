@@ -16,58 +16,60 @@ import random
 import math
 import cmath
 import numpy as np
-#from numpy import log, exp, asarray, ndarray, empty
+
+# from numpy import log, exp, asarray, ndarray, empty
 import scipy.sparse
 from scipy.special import logsumexp
 
 
-__all__ = ['feature_sampler',
-           'dictsample',
-           'dictsampler',
-           'auxiliary_sampler_scipy',
-           'evaluate_feature_matrix',
-           'innerprod',
-           'innerprodtranspose',
-           'DivergenceError']
+__all__ = [
+    "feature_sampler",
+    "dictsample",
+    "dictsampler",
+    "auxiliary_sampler_scipy",
+    "evaluate_feature_matrix",
+    "innerprod",
+    "innerprodtranspose",
+    "DivergenceError",
+]
 
 
+# def feature_sampler(vec_f, auxiliary_sampler):
+#     """
+#     A generator function for tuples (F, log_q_xs, xs)
+#
+#     Parameters
+#     ----------
+#     vec_f : function
+#         Pass `vec_f` as a (vectorized) function that operates on a vector of
+#         samples xs = {x1,...,xn} and returns a feature matrix (m x n), where m
+#         is some number of feature components.
+#
+#     auxiliary_sampler : function
+#         Pass `auxiliary_sampler` as a function that returns a tuple
+#         (xs, log_q_xs) representing a sample to use for sampling (e.g.
+#         importance sampling) on the sample space of the model.
+#
+#         xs : list, 1d ndarray, or 2d matrix (n x d)
+#             We require len(xs) == n.
+#
+#
+#     Yields
+#     ------
+#         tuples (F, log_q_xs, xs)
+#
+#         F : matrix (m x n)
+#         log_q_xs : as returned by auxiliary_sampler
+#         xs : as returned by auxiliary_sampler
+#
+#     """
+#     while True:
+#         xs, log_q_xs = auxiliary_sampler()
+#         F = vec_f(xs)  # compute feature matrix from points
+#         yield F, log_q_xs, xs
 
-def feature_sampler(vec_f, auxiliary_sampler):
-    """
-    A generator function for tuples (F, log_q_xs, xs)
 
-    Parameters
-    ----------
-    vec_f : function
-        Pass `vec_f` as a (vectorized) function that operates on a vector of
-        samples xs = {x1,...,xn} and returns a feature matrix (m x n), where m
-        is some number of feature components.
-
-    auxiliary_sampler : function
-        Pass `auxiliary_sampler` as a function that returns a tuple
-        (xs, log_q_xs) representing a sample to use for sampling (e.g.
-        importance sampling) on the sample space of the model.
-
-        xs : list, 1d ndarray, or 2d matrix (n x d)
-            We require len(xs) == n.
-
-
-    Yields
-    ------
-        tuples (F, log_q_xs, xs)
-
-        F : matrix (m x n)
-        log_q_xs : as returned by auxiliary_sampler
-        xs : as returned by auxiliary_sampler
-
-    """
-    while True:
-        xs, log_q_xs = auxiliary_sampler()
-        F = vec_f(xs)  # compute feature matrix from points
-        yield F, log_q_xs, xs
-
-
-def dictsample(freq, size=(), return_probs='logprob'):
+def dictsample(freq, size=(), return_probs="logprob"):
     """
     Create a sample of the given size from the specified discrete distribution.
 
@@ -111,15 +113,15 @@ def dictsample(freq, size=(), return_probs='logprob'):
     if return_probs is None:
         return sample
     sampleprobs = probs[indices]
-    if return_probs == 'prob':
+    if return_probs == "prob":
         return sample, sampleprobs
-    elif return_probs == 'logprob':
+    elif return_probs == "logprob":
         return sample, np.log(sampleprobs)
     else:
         raise ValueError('return_probs must be "prob", "logprob", or None')
 
 
-def dictsampler(freq, size=(), return_probs='logprob'):
+def dictsampler(freq, size=(), return_probs="logprob"):
     """
     A generator of samples of the given size from the specified discrete
     distribution.
@@ -173,10 +175,12 @@ def auxiliary_sampler_scipy(auxiliary, dimensions=1, n=10**5):
             xs : matrix (n x d): [x_1, ..., x_n]: a sample
             log_q_xs: log pdf values under the auxiliary sampler for each x_j
     """
+
     def sampler():
         xs = auxiliary.rvs(size=(n, dimensions))
         log_q_xs = np.log(auxiliary.pdf(xs.T)).sum(axis=0)
         return (xs, log_q_xs)
+
     return sampler
 
 
@@ -201,19 +205,19 @@ def _logsumexpcomplex(values):
             b_i = next(iterator) + 0j
         except StopIteration:
             # empty
-            return float('-inf')
-        if b_i.real != float('-inf'):
+            return float("-inf")
+        if b_i.real != float("-inf"):
             break
 
     # Now the rest
     for a_i in iterator:
         a_i += 0j
         if b_i.real > a_i.real:
-            increment = robustlog(1.+cmath.exp(a_i - b_i))
+            increment = robustlog(1.0 + cmath.exp(a_i - b_i))
             # print "Increment is " + str(increment)
             b_i = b_i + increment
         else:
-            increment = robustlog(1.+cmath.exp(b_i - a_i))
+            increment = robustlog(1.0 + cmath.exp(b_i - a_i))
             # print "Increment is " + str(increment)
             b_i = a_i + increment
 
@@ -235,8 +239,8 @@ def robustlog(x):
     """Returns log(x) if x > 0, the complex log cmath.log(x) if x < 0,
     or float('-inf') if x == 0.
     """
-    if x == 0.:
-        return float('-inf')
+    if x == 0.0:
+        return float("-inf")
     elif type(x) is complex or (type(x) is float and x < 0):
         return cmath.log(x)
     else:
@@ -244,15 +248,14 @@ def robustlog(x):
 
 
 def _robustarraylog(x):
-    """ An array version of robustlog.  Operates on a real array x.
-    """
+    """An array version of robustlog.  Operates on a real array x."""
     arraylog = empty(len(x), np.complex64)
     for i in range(len(x)):
         xi = x[i]
         if xi > 0:
             arraylog[i] = math.log(xi)
-        elif xi == 0.:
-            arraylog[i] = float('-inf')
+        elif xi == 0.0:
+            arraylog[i] = float("-inf")
         else:
             arraylog[i] = cmath.log(xi)
     return arraylog
@@ -261,7 +264,7 @@ def _robustarraylog(x):
 # def arrayexp(x):
 #     """
 #     OBSOLETE?
-#     
+#
 #     Returns the elementwise antilog of the real array x.
 #
 #     We try to exponentiate with np.exp() and, if that fails, with
@@ -283,7 +286,7 @@ def _robustarraylog(x):
 # def arrayexpcomplex(x):
 #     """
 #     OBSOLETE?
-#     
+#
 #     Returns the elementwise antilog of the vector x.
 #
 #     We try to exponentiate with np.exp() and, if that fails, with python's
@@ -317,12 +320,14 @@ def sample_wr(population, k):
     return [population[_int(_random() * n)] for i in range(k)]
 
 
-def evaluate_feature_matrix(feature_functions,
-                            xs,
-                            vectorized=False,
-                            format='csc_matrix',
-                            dtype=float,
-                            verbose=False):
+def evaluate_feature_matrix(
+    feature_functions,
+    xs,
+    vectorized=False,
+    format="csc_matrix",
+    dtype=float,
+    verbose=False,
+):
     """Evaluate a (m x n) matrix of features `F` of the sample `xs` as:
 
         F[i, :] = f_i(xs[:])
@@ -375,27 +380,27 @@ def evaluate_feature_matrix(feature_functions,
     else:
         n, d = len(xs), 1
 
-    if format in ('dok_matrix', 'csc_matrix', 'csr_matrix'):
+    if format in ("dok_matrix", "csc_matrix", "csr_matrix"):
         F = scipy.sparse.dok_matrix((m, n), dtype=dtype)
-    elif format == 'ndarray':
+    elif format == "ndarray":
         F = np.empty((m, n), dtype=dtype)
     else:
-        raise ValueError('matrix format not recognized')
+        raise ValueError("matrix format not recognized")
 
     for i, f_i in enumerate(feature_functions):
         if verbose:
-            print('Computing feature {i} of {m} ...'.format(i=i, m=m))
+            print("Computing feature {i} of {m} ...".format(i=i, m=m))
         if vectorized:
             F[i::m, :] = f_i(xs)
         else:
             for j in range(n):
                 f_i_x = f_i(xs[j])
                 if f_i_x != 0:
-                    F[i,j] = f_i_x
+                    F[i, j] = f_i_x
 
-    if format == 'csc_matrix':
+    if format == "csc_matrix":
         return F.tocsc()
-    elif format == 'csr_matrix':
+    elif format == "csr_matrix":
         return F.tocsr()
     else:
         return F
@@ -591,10 +596,11 @@ def old_vec_feature_function(feature_functions, sparse=False):
             return F
         else:
             return scipy.sparse.csc_matrix(F)
+
     return vectorized_features
 
 
-def dotprod(u,v):
+def dotprod(u, v):
     """
     This is a wrapper around general dense or sparse dot products.
 
@@ -605,20 +611,20 @@ def dotprod(u,v):
     (m x 1) (dense) numpy array v.
 
     """
-    #print "Taking the dot product u.v, where"
-    #print "u has shape " + str(u.shape)
-    #print "v = " + str(v)
+    # print "Taking the dot product u.v, where"
+    # print "u has shape " + str(u.shape)
+    # print "v = " + str(v)
 
     try:
         dotprod = np.array([0.0])  # a 1x1 array.  Required by spmatrix.
         u.matvec(v, dotprod)
-        return dotprod[0]               # extract the scalar
+        return dotprod[0]  # extract the scalar
     except AttributeError:
         # Assume u is a dense array.
-        return np.dot(u,v)
+        return np.dot(u, v)
 
 
-def innerprod(A,v):
+def innerprod(A, v):
     """
     This is a wrapper around general dense or sparse dot products.
 
@@ -651,7 +657,7 @@ def innerprod(A,v):
         else:
             # Assume A is sparse
             if scipy.sparse.isspmatrix(A):
-                innerprod = A.matvec(v)   # This returns a float32 type. Why???
+                innerprod = A.matvec(v)  # This returns a float32 type. Why???
                 return innerprod
             else:
                 # Assume PySparse format
@@ -664,7 +670,7 @@ def innerprod(A,v):
         raise TypeError("unsupported types for inner product")
 
 
-def innerprodtranspose(A,v):
+def innerprodtranspose(A, v):
     """
     This is a wrapper around general dense or sparse dot products.
 
@@ -680,15 +686,17 @@ def innerprodtranspose(A,v):
     """
 
     (m, n) = A.shape
-    #pdb.set_trace()
-    if hasattr(A, 'matvec_transp'):
+    # pdb.set_trace()
+    if hasattr(A, "matvec_transp"):
         # A looks like a PySparse matrix
         if len(v.shape) == 1:
             innerprod = np.empty(n, float)
             A.matvec_transp(v, innerprod)
         else:
-            raise TypeError("innerprodtranspose(A,v) requires that v be "
-                    "a vector (rank-1 dense array) if A is sparse.")
+            raise TypeError(
+                "innerprodtranspose(A,v) requires that v be "
+                "a vector (rank-1 dense array) if A is sparse."
+            )
         return innerprod
     elif scipy.sparse.isspmatrix(A):
         return (A.conj().transpose() * v).transpose()
@@ -704,7 +712,7 @@ def innerprodtranspose(A,v):
                 x = np.dot(vcolumn, A)
                 return np.reshape(x, (n,))
             else:
-                #(vm, vn) = v.shape
+                # (vm, vn) = v.shape
                 # Assume vm == m
                 x = np.dot(np.transpose(v), A)
                 return np.transpose(x)
@@ -734,10 +742,10 @@ def rowmeans(A):
         try:
             n = A.shape[1]
         except AttributeError:
-            raise TypeError("rowmeans() only works with sparse and dense "
-                            "arrays")
+            raise TypeError("rowmeans() only works with sparse and dense " "arrays")
         rowsum = innerprod(A, np.ones(n, float))
         return rowsum / float(n)
+
 
 def columnmeans(A):
     """
@@ -761,10 +769,10 @@ def columnmeans(A):
         try:
             m = A.shape[0]
         except AttributeError:
-            raise TypeError("columnmeans() only works with sparse and dense "
-                            "arrays")
+            raise TypeError("columnmeans() only works with sparse and dense " "arrays")
         columnsum = innerprodtranspose(A, np.ones(m, float))
         return columnsum / float(m)
+
 
 def columnvariances(A):
     """
@@ -783,15 +791,17 @@ def columnvariances(A):
 
     """
     if type(A) is np.ndarray:
-        return np.std(A,0)**2
+        return np.std(A, 0) ** 2
     else:
         try:
             m = A.shape[0]
         except AttributeError:
-            raise TypeError("columnvariances() only works with sparse "
-                            "and dense arrays")
+            raise TypeError(
+                "columnvariances() only works with sparse " "and dense arrays"
+            )
         means = columnmeans(A)
-        return columnmeans((A-means)**2) * (m/(m-1.0))
+        return columnmeans((A - means) ** 2) * (m / (m - 1.0))
+
 
 def flatten(a):
     """Flattens the sparse matrix or dense array/matrix 'a' into a
@@ -802,9 +812,10 @@ def flatten(a):
     else:
         return np.asarray(a).flatten()
 
+
 class DivergenceError(Exception):
-    """Exception raised if the entropy dual has no finite minimum.
-    """
+    """Exception raised if the entropy dual has no finite minimum."""
+
     def __init__(self, message):
         self.message = message
         Exception.__init__(self)
@@ -812,9 +823,12 @@ class DivergenceError(Exception):
     def __str__(self):
         return repr(self.message)
 
+
 def _test():
     import doctest
+
     doctest.testmod()
+
 
 if __name__ == "__main__":
     _test()
