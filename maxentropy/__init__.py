@@ -92,16 +92,13 @@ warnings.filterwarnings('always', category=DeprecationWarning,
 
 
 from .base import BaseModel
-from scipy_maxentropy import Model, ConditionalModel, BigModel
+import scipy_maxentropy
 from .skmaxent import (FeatureTransformer,
                        MinDivergenceModel,
                        MCMinDivergenceModel)
 
 
 __all__ = ['BaseModel',
-           'Model',
-           'ConditionalModel',
-           'BigModel',
            'utils',
            'FeatureTransformer',
            'MinDivergenceModel',
