@@ -63,4 +63,4 @@ def test_loaded_die():
     print("\tE f(X)   = [4.5]")
     print()
     print("Actual expectations under the fitted model:")
-    print("\t\hat{X} = ", model.expectations())
+    print("\t\\hat{X} = ", model.expectations())
