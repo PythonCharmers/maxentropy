@@ -38,9 +38,9 @@ def test_logsumexp():
 
 def test_entropy_loaded_die():
     """
-    Fit some discrete models and ensure that the entropy and entropy are equal
-    (when the constraints are satisfied after fitting) and both these equal the
-    result produced by scipy.stats.entropy().
+    Fit some discrete models and ensure that the entropy its Lagrangian dual are
+    equal (after fitting, when the constraints are satisfied) and both these
+    equal the result produced by scipy.stats.entropy().
     """
     samplespace = np.arange(6) + 1
 
@@ -61,6 +61,39 @@ def test_entropy_loaded_die():
     H = model.entropy()
     assert_allclose(H, model.entropydual())
     assert_allclose(H, scipy.stats.entropy(model.probdist()))
+
+
+def test_kl_div_loaded_die():
+    """
+    Fit some discrete models with priors and ensure that the KL divergence is
+    equal to that computed by scipy.stats.entropy(px, qx).
+    """
+    samplespace = np.arange(6) + 1
+
+    def f0(x):
+        return x in samplespace
+
+    uniform_model = maxentropy.MinDivergenceModel([f0], samplespace)
+
+    def f1(x):
+        return x
+
+    features = [f0, f1]
+
+    # Now set the desired feature expectations
+    target_expectations = [1.0, 4.5]
+
+    # X = np.atleast_2d(target_expectations)
+    model = maxentropy.MinDivergenceModel(
+        features, samplespace, prior_log_pdf=uniform_model.predict_log_proba
+    )
+
+    # Fit the model
+    model.fit(target_expectations)
+
+    KL = model.kl_divergence()
+    assert KL >= 0
+    assert_allclose(KL, scipy.stats.entropy(model.probdist(), uniform_model.probdist()))
 
 
 def test_evaluate_feature_matrix():

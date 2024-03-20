@@ -113,12 +113,6 @@ class BaseModel(six.with_metaclass(ABCMeta)):
 
         if prior_log_pdf is None:
             self.priorlogprobs = None
-        else:
-            # Are we sampling instead of enumerating the sample space?
-            if hasattr(self, "samplespace"):
-                lp = self.prior_log_pdf(self.samplespace)
-                self.priorlogprobs = np.reshape(lp, len(self.samplespace))
-            # else self.priorlogprobs will be set by resample()
 
         self.vectorized = vectorized
         if matrix_format in ("csr_matrix", "csc_matrix", "ndarray"):
@@ -212,7 +206,10 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         except AttributeError:
             self.resetparams(len(K))
         else:
-            assert len(self.params) == len(K)
+            if len(self.params) != len(K):
+                raise ValueError(
+                    "the number of target expectations does not match the number of features. We need len(np.squeeze(X)) == len(features)."
+                )
 
         # Don't reset the number of function and gradient evaluations to zero
         # self.fnevals = 0
@@ -485,7 +482,7 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         return G
 
     def cross_entropy(self, fx, log_prior_x=None, base=np.e):
-        """Returns the cross entropy H(q, p) of the empirical
+        r"""Returns the cross entropy H(q, p) of the empirical
         distribution q of the data (with the given feature matrix fx)
         with respect to the model p.  For discrete distributions this is
         defined as:

@@ -277,6 +277,9 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         )
 
         self.samplespace = samplespace
+        if prior_log_pdf is not None:
+            lp = prior_log_pdf(self.samplespace)
+            self.priorlogprobs = np.reshape(lp, len(self.samplespace))
         self.resetparams()
 
     def entropy(self):
@@ -293,9 +296,15 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         """
         Compute the Kullback-Leibler divergence (often called relative entropy)
         K(p || q) of the model p with current parameters self.params versus the
-        other probability distribution q specified as self.log_prior_x.
+        prior probability distribution q specified as self.log_prior_x.
         """
+        if self.prior_log_pdf is None:
+            raise Exception(
+                "Model needs to be initialized with a prior distribution to calculate KL divergence"
+            )
         prior_log_pdf = self.prior_log_pdf(self.samplespace)
+        kl_div = np.sum(self.probdist() * (self.log_probdist() - prior_log_pdf))
+        return kl_div
 
     def log_norm_constant(self):
         r"""Compute the log of the normalization term (partition
@@ -599,6 +608,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         # more external samples. If 0, don't test.
         self.testevery = 0
 
+        # self.priorlogprobs will be set by resample()
         self.resample()
 
     def _check_features(self):
