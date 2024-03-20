@@ -298,7 +298,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         prior_log_pdf = self.prior_log_pdf(self.samplespace)
 
     def log_norm_constant(self):
-        """Compute the log of the normalization term (partition
+        r"""Compute the log of the normalization term (partition
         function) Z=sum_{x \in samplespace} p_0(x) exp(params . f(x)).
         The sample space must be discrete and finite.
         """
@@ -372,7 +372,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         return np.exp(self.log_probdist())
 
     def divergence(self):
-        """Return the Kullback-Leibler (KL) divergence between the model and
+        r"""Return the Kullback-Leibler (KL) divergence between the model and
         the prior p0 (whose log pdf was specified when constructing
         the model).
 
@@ -846,10 +846,10 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             #     -log(n-1) + logsumexp(2*log|Z_k - meanZ|)
 
             self.logZapprox = logsumexp(logZs) - math.log(ttrials)
-            stdevlogZ = np.array(logZs).std()
+            # stdevlogZ = np.array(logZs).std()
             mus = np.array(mus)
-            self.varE = columnvariances(mus)
-            self.mu = columnmeans(mus)
+            self.varE = mus.var(axis=0)  # column variances
+            self.mu = mus.mean(axis=0)  # column means
 
     def pdf_from_features(self, fx, *, log_prior_x=None):
         """Returns the estimated density p_theta(x) at the point x with
@@ -858,7 +858,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         where Z is the estimated value self.norm_constant() of the partition
         function.
         """
-        return np.exp(self.log_pdf(fx, log_prior_x=log_prior_x))
+        return np.exp(self.log_pdf_from_features(fx, log_prior_x=log_prior_x))
 
     def pdf_function(self):
         """Returns the estimated density p_theta(x) as a function p(f)
@@ -992,7 +992,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             print(
                 "** Mean mean square error of the (unregularized) feature"
                 " expectation estimates from the external samples ="
-                " mean(|| \hat{\mu_e} - k ||,axis=0) =",
+                r" mean(|| \hat{\mu_e} - k ||,axis=0) =",
                 np.average(gradnorms, axis=0),
             )
         # Track the parameter vector params with the lowest mean dual estimate

@@ -263,7 +263,9 @@ def evaluate_feature_matrix(
                 for j in range(n):
                     f_i_xj = f_i(xs[j])
                     if f_i_xj != 0:
-                        F[j, i] = f_i_xj
+                        F[j, i] = np.squeeze(
+                            f_i_xj
+                        )  # squeeze in case f_i is vectorized but the user passed vectorize=False
             except TypeError:
                 raise TypeError(
                     "Failed to evaluating feature functions on individual "
