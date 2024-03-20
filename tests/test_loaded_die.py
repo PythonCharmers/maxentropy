@@ -24,8 +24,10 @@ import maxentropy
 
 samplespace = np.arange(6) + 1
 
+
 def f0(x):
     return x
+
 
 features = [f0]
 
@@ -36,7 +38,7 @@ X = np.atleast_2d(target_expectations)
 
 
 def test_loaded_die():
-    model = maxentropy.MinDivergenceModel(features, samplespace)
+    model = maxentropy.MinKLDensity(features, samplespace)
 
     # Fit the model
     model.fit(X)
@@ -46,7 +48,7 @@ def test_loaded_die():
 
     # Manually test if the constraints are satisfied:
     p = model.probdist()
-    mean = np.sum(p * samplespace)   # E(X) = \sum_{j=1,...,n} p(x_j) x_j
+    mean = np.sum(p * samplespace)  # E(X) = \sum_{j=1,...,n} p(x_j) x_j
     assert np.isclose(mean, target_expectations[0])
 
     # Output the distribution
@@ -55,7 +57,6 @@ def test_loaded_die():
 
     for j, x in enumerate(model.samplespace):
         print(f"\tx = {x}: p(x) = {p[j]:0.3f}")
-
 
     # Now show how well the constraints are satisfied:
     print()

@@ -14,6 +14,8 @@ from scipy.special import logsumexp
 import maxentropy
 import maxentropy.utils as utils
 
+import pytest
+
 
 def test_logsumexp():
     """
@@ -53,7 +55,7 @@ def test_entropy_loaded_die():
     target_expectations = [4.5]
 
     # X = np.atleast_2d(target_expectations)
-    model = maxentropy.MinDivergenceModel(features, samplespace)
+    model = maxentropy.MinKLDensity(features, samplespace)
 
     # Fit the model
     model.fit(target_expectations)
@@ -73,7 +75,7 @@ def test_kl_div_loaded_die():
     def f0(x):
         return x in samplespace
 
-    uniform_model = maxentropy.MinDivergenceModel([f0], samplespace)
+    uniform_model = maxentropy.MinKLDensity([f0], samplespace)
 
     def f1(x):
         return x
@@ -84,7 +86,7 @@ def test_kl_div_loaded_die():
     target_expectations = [1.0, 4.5]
 
     # X = np.atleast_2d(target_expectations)
-    model = maxentropy.MinDivergenceModel(
+    model = maxentropy.MinKLDensity(
         features, samplespace, prior_log_pdf=uniform_model.predict_log_proba
     )
 
@@ -165,6 +167,40 @@ def test_evaluate_feature_matrix():
     assert F.dtype == np.int64
 
 
+@pytest.mark.xfail(reason="need to figure out this test!")
+def test_evaluate_feature_matrix_2():
+    from sklearn.datasets import load_iris
+
+    iris = load_iris()
+
+    X = iris.data
+    y = iris.target
+    samplespace = iris["target_names"]
+
+    def f0(X):
+        return X[:, 0]  # sepal length
+
+    def f1(X):
+        return X[:, 1]  # sepal width
+
+    def f2(X):
+        return X[:, 2]
+
+    def f3(X):
+        return X[:, 3]
+
+    def f4(X):
+        """
+        Petal length * petal width
+        """
+        return X[:, 1] * X[:, 2]
+
+    features = [f0, f1, f2, f3, f4]
+    models = {}
+    for target_class, target_name in enumerate(iris["target_names"]):
+        models[target_class] = maxentropy.MinKLDensity(features, samplespace)
+
+
 """
 Machine translation example -- English to French -- from the paper 'A
 maximum entropy approach to natural language processing' by Berger et
@@ -198,7 +234,7 @@ def test_berger(algorithm="CG"):
     # Now set the desired feature expectations
     target_expectations = [1.0, 0.3, 0.5]
 
-    model = maxentropy.MinDivergenceModel(
+    model = maxentropy.MinKLDensity(
         features, samplespace, vectorized=False, verbose=False, algorithm=algorithm
     )
 
@@ -265,7 +301,7 @@ def test_dictsampler():
 
     auxiliary_sampler = utils.dictsampler(samplefreq, size=n)
 
-    model = maxentropy.MCMinDivergenceModel(
+    model = maxentropy.SamplingMinKLDensity(
         features,
         auxiliary_sampler,
         vectorized=False,

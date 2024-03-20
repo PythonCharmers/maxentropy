@@ -15,9 +15,9 @@ from sklearn.utils import check_array
 from maxentropy.utils import DivergenceError, evaluate_feature_matrix
 
 
-class BaseModel(six.with_metaclass(ABCMeta)):
-    """A base class providing generic functionality for both small and
-    large maximum entropy models.  Cannot be instantiated.
+class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
+    """A base class providing generic functionality for Minimum KL divergence
+    models using either exact summation or sampling. Cannot be instantiated.
 
     Parameters
     ----------
@@ -707,6 +707,9 @@ def _test():
     import doctest
 
     doctest.testmod()
+
+
+__all__ = ["BaseMinKLDensity"]
 
 
 if __name__ == "__main__":

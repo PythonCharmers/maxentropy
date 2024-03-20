@@ -6,138 +6,14 @@ import math
 import types
 
 import numpy as np
-from sklearn.base import BaseEstimator, TransformerMixin, DensityMixin
-from sklearn.utils import check_array
+from sklearn.base import BaseEstimator, DensityMixin
 from scipy.special import logsumexp
 
-# import scipy.stats
-
-from .utils import evaluate_feature_matrix, feature_sampler
-from .base import BaseModel
+from maxentropy.utils import evaluate_feature_matrix, feature_sampler
+from maxentropy.base import BaseMinKLDensity
 
 
-class FeatureTransformer(BaseEstimator, TransformerMixin):
-    """
-    Transform observations into a matrix of real-valued features
-    suitable for fitting e.g. a MinDivergenceModel.
-
-    The observations X can be given as a matrix or as a sequence of n Python
-    objects representing points in some arbitrary sample space. For example,
-    X can comprise n strings representing natural-language sentences.
-
-    The result of calling the `transform(X)` method is an (n x m) matrix of
-    each of the m features evaluated for each of the n observations.
-
-    Parameters
-    ----------
-    features : either (a) list of functions or (b) array
-
-        (a) list of functions: [f_1, ..., f_m]
-
-        (b) array: 2d array of shape (n, m)
-            Matrix representing evaluations of f_i(x) from i=1 to i=m on all
-            points or observations x_1,...,x_n in the sample space.
-
-    samplespace : sequence
-        an enumerable sequence of values x in some discrete sample space X.
-
-    vectorized : bool (default True)
-        If True, the functions f_i(xs) are assumed to be "vectorized", meaning
-        that each is assumed to accept a sequence of values xs = (x_1, ...,
-        x_n) at once and each return a vector of length n.
-
-        If False, the functions f_i(x) take individual values x on the sample
-        space and return real values. This is likely to be slow down computing
-        the features significantly.
-
-    matrix_format : string
-             Currently 'csr_matrix', 'csc_matrix', and 'ndarray'
-             are recognized.
-
-
-    Example usage:
-    --------------
-    # Fit a model with the constraint E(X) = 18 / 4
-    def f0(x):
-        return x
-
-    features = [f0]
-
-    samplespace = np.arange(6) + 1
-    transformer = FeatureTransformer(features, samplespace)
-    X = np.array([[5, 6, 6, 1]]).T
-    >>> transformer.transform(X)
-
-    """
-
-    def __init__(
-        self,
-        feature_functions,
-        samplespace,
-        *,
-        matrix_format="csr_matrix",
-        vectorized=True,
-        verbose=0
-    ):
-        """ """
-        if matrix_format in ("csr_matrix", "csc_matrix", "ndarray"):
-            self.matrix_format = matrix_format
-        else:
-            raise ValueError("matrix format not understood")
-        self.feature_functions = feature_functions
-        self.samplespace = samplespace
-        self.matrix_format = matrix_format
-        self.vectorized = vectorized
-        self.verbose = verbose
-
-    def fit(self, X, y=None):
-        """Unused.
-
-        Parameters
-        ----------
-        X : Unused.
-
-        y : Unused.
-
-        These are placeholders to allow for usage in a Pipeline.
-
-        Returns
-        -------
-        self
-
-        """
-        return self
-
-    def transform(self, X, y=None):
-        """
-        Apply features to a sequence of observations X
-
-        Parameters
-        ----------
-        X : a sequence (list or array) of observations.
-            These can be arbitrary objects: strings, row vectors, etc.
-
-        Returns
-        -------
-        (n x d) array of features.
-        """
-
-        n_samples = len(X)
-        # if isinstance(X, list):
-        #     n_samples = len(X)
-        # else:
-        X = check_array(X, accept_sparse=["csr", "csc"], ensure_2d=False, dtype=None)
-        # n_samples = X.shape[0]
-        # if not X.shape[1] == 1:
-        #     raise ValueError('X must have only one column')
-        F = evaluate_feature_matrix(
-            self.feature_functions, X, vectorized=self.vectorized, verbose=self.verbose
-        )
-        assert n_samples, len(self.feature_functions) == F.shape
-        return F
-
-
-class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
+class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
     """
     A discrete model with minimum Kullback-Leibler (KL) divergence from
     a given prior distribution subject to defined moment constraints.
@@ -252,8 +128,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         verbose=0
     ):
 
-        BaseModel.__init__(
-            self,
+        super().__init__(
             feature_functions,
             prior_log_pdf=prior_log_pdf,
             vectorized=vectorized,
@@ -463,7 +338,7 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
             show_x_and_px_values(n - max_output_lines // 2, n)
 
 
-class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
+class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
     """
     A minimum KL-divergence / maximum-entropy (exponential-form) model
     on a continuous or large discrete sample space requiring Monte Carlo
@@ -565,8 +440,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         verbose=0
     ):
 
-        BaseModel.__init__(
-            self,
+        super().__init__(
             feature_functions=feature_functions,
             prior_log_pdf=prior_log_pdf,
             vectorized=vectorized,
@@ -1014,4 +888,7 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
                 print("\n\t\t\tStored new minimum entropy dual: %f\n" % meandual)
 
 
-__all__ = ["FeatureTransformer", "MinDivergenceModel", "MCMinDivergenceModel"]
+__all__ = [
+    "MinKLDensity",
+    "SamplingMinKLDensity",
+]

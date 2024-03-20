@@ -80,11 +80,18 @@ and its gradient.  Otherwise, set self.external to the index of the
 sample feature matrix in the list self.externalFs.  This applies to
 'BigModel' objects only, but setting this here simplifies the code in
 dual() and grad().
-
 """
 
 import warnings
 import re
+
+from .base import BaseMinKLDensity
+from .utils import FeatureTransformer
+from .core import (
+    MinKLDensity,
+    SamplingMinKLDensity,
+)
+
 
 # Make sure that DeprecationWarning within this package always gets printed
 warnings.filterwarnings(
@@ -92,17 +99,12 @@ warnings.filterwarnings(
 )
 
 
-from .base import BaseModel
-import scipy_maxentropy
-from .skmaxent import FeatureTransformer, MinDivergenceModel, MCMinDivergenceModel
-
-
 __all__ = [
-    "BaseModel",
+    "BaseMinKLDensity",
     "utils",
     "FeatureTransformer",
-    "MinDivergenceModel",
-    "MCMinDivergenceModel",
+    "MinKLDensity",
+    "SamplingMinKLDensity",
 ]
 
 # PEP0440 compatible formatted version, see:
