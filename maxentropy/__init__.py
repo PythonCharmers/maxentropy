@@ -22,15 +22,15 @@ but too large to sum over, requiring Monte Carlo simulation.
 Use the .fit() method to fit the maxent model p whose feature
 expectations are given by the vector K.
 
-Model expectations are computed either exactly or using Monte Carlo
+Model feature expectations are computed either exactly or using Monte Carlo
 simulation, depending on the 'func' and 'grad' parameters passed to this
 function.
 
-For 'Model' instances, expectations are computed exactly, by summing over
+For 'Model' instances, feature expectations are computed exactly, by summing over
 the given sample space.  If the sample space is continuous or too large
 to iterate over, use the 'BigModel' class instead.
 
-For 'BigModel' instances, the model expectations are not computed exactly
+For 'BigModel' instances, the feature expectations are not computed exactly
 (by summing or integrating over a sample space) but approximately (by
 Monte Carlo simulation).  Simulation is necessary when the sample space
 is too large to sum or integrate over in practice, like a continuous
@@ -87,22 +87,23 @@ import warnings
 import re
 
 # Make sure that DeprecationWarning within this package always gets printed
-warnings.filterwarnings('always', category=DeprecationWarning,
-                        module='^{0}\.'.format(re.escape(__name__)))
+warnings.filterwarnings(
+    "always", category=DeprecationWarning, module="^{0}\.".format(re.escape(__name__))
+)
 
 
 from .base import BaseModel
 import scipy_maxentropy
-from .skmaxent import (FeatureTransformer,
-                       MinDivergenceModel,
-                       MCMinDivergenceModel)
+from .skmaxent import FeatureTransformer, MinDivergenceModel, MCMinDivergenceModel
 
 
-__all__ = ['BaseModel',
-           'utils',
-           'FeatureTransformer',
-           'MinDivergenceModel',
-           'MCMinDivergenceModel']
+__all__ = [
+    "BaseModel",
+    "utils",
+    "FeatureTransformer",
+    "MinDivergenceModel",
+    "MCMinDivergenceModel",
+]
 
 # PEP0440 compatible formatted version, see:
 # https://www.python.org/dev/peps/pep-0440/
@@ -120,4 +121,4 @@ __all__ = ['BaseModel',
 # Dev branch marker is: 'X.Y.dev' or 'X.Y.devN' where N is an integer.
 # 'X.Y.dev0' is the canonical version of 'X.Y.dev'
 #
-__version__ = '0.4.dev0'
+__version__ = "0.4.dev0"

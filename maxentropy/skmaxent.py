@@ -9,7 +9,8 @@ import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin, DensityMixin
 from sklearn.utils import check_array
 from scipy.special import logsumexp
-from scipy.stats import entropy
+
+# import scipy.stats
 
 from .utils import evaluate_feature_matrix, feature_sampler
 from .base import BaseModel
@@ -278,6 +279,24 @@ class MinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
         self.samplespace = samplespace
         self.resetparams()
 
+    def entropy(self):
+        """
+        Compute the entropy of the model with the current parameters self.params_.
+        """
+        # H = -sum(pk * log(pk))
+        H = -np.sum(self.probdist() * self.log_probdist())
+        # or simpler but less efficient:
+        # H = scipy.stats.entropy(self.probdist())
+        return H
+
+    def kl_divergence(self):
+        """
+        Compute the Kullback-Leibler divergence (often called relative entropy)
+        K(p || q) of the model p with current parameters self.params versus the
+        other probability distribution q specified as self.log_prior_x.
+        """
+        prior_log_pdf = self.prior_log_pdf(self.samplespace)
+
     def log_norm_constant(self):
         """Compute the log of the normalization term (partition
         function) Z=sum_{x \in samplespace} p_0(x) exp(params . f(x)).
@@ -441,10 +460,10 @@ class MCMinDivergenceModel(BaseEstimator, DensityMixin, BaseModel):
     on a continuous or large discrete sample space requiring Monte Carlo
     simulation.
 
-    Model expectations are computed iteratively using importance
+    Model feature expectations are computed iteratively using importance
     sampling.
 
-    The model expectations are not computed exactly (by summing or
+    The model feature expectations are not computed exactly (by summing or
     integrating over a sample space) but approximately (by Monte Carlo
     estimation).  Approximation is necessary when the sample space is too
     large to sum or integrate over in practice, like a continuous sample

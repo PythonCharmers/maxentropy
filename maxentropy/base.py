@@ -92,6 +92,9 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         vectorized=True,
         matrix_format="csr_matrix",
         algorithm="CG",
+        maxgtol=1e-7,
+        avegtol=1e-7,
+        tol=1e-8,
         verbose=0
     ):
         self.feature_functions = feature_functions
@@ -111,12 +114,11 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         if prior_log_pdf is None:
             self.priorlogprobs = None
         else:
-            if hasattr(self, "resample"):
-                # self.priorlogprobs will be set by resample()
-                pass
-            else:
+            # Are we sampling instead of enumerating the sample space?
+            if hasattr(self, "samplespace"):
                 lp = self.prior_log_pdf(self.samplespace)
-                self.priorlogprobs = np.reshape(lp, len(samplespace))
+                self.priorlogprobs = np.reshape(lp, len(self.samplespace))
+            # else self.priorlogprobs will be set by resample()
 
         self.vectorized = vectorized
         if matrix_format in ("csr_matrix", "csc_matrix", "ndarray"):
@@ -126,14 +128,14 @@ class BaseModel(six.with_metaclass(ABCMeta)):
         self.algorithm = algorithm
         self.verbose = verbose
 
-        self.maxgtol = 1e-7
+        self.maxgtol = maxgtol
 
         # Required tolerance of gradient on average (closeness to zero,axis=0)
         # for CG optimization:
-        self.avegtol = 1e-7
+        self.avegtol = avegtol
 
         # Default tolerance for the other optimization algorithms:
-        self.tol = 1e-8
+        self.tol = tol
 
         # Default tolerance for stochastic approximation: stop if
         # ||params_k - params_{k-1}|| < paramstol:

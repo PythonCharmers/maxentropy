@@ -46,7 +46,7 @@ def auxiliary_sampler_scipy(distribution, n_dims=1, n_samples=1):
         (xs, log_q_xs)
     where:
         xs : matrix (n_samples x n_dims): [x_1, ..., x_n]: a sample
-        log_q_xs: log pdf values under the auxiliary sampler for each x_j (for j = 1 through n)
+        log_q_xs: log pdf values under the auxiliary sampler q for each x_j (for j = 1 through n)
 
     """
     size = (n_samples, n_dims)
