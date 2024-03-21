@@ -333,7 +333,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         """
 
         if self.external is None and not self.callingback:
-            if self.verbose:
+            if self.verbose >= 2:
                 print("Function eval #", self.fnevals)
 
         if params is not None:
@@ -352,7 +352,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         if np.isnan(L):
             raise ValueError("Oops: the dual is nan! Debug me!")
 
-        if self.verbose and self.external is None:
+        if self.verbose >= 2 and self.external is None:
             print("  dual is ", L)
 
         # Use a Gaussian prior for smoothing if requested.
@@ -364,7 +364,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
             # Why does the above convert inf to 1.79769e+308?
 
             L += 0.5 * ratios.sum()
-            if self.verbose and self.external is None:
+            if self.verbose >= 2 and self.external is None:
                 print("  regularized dual is ", L)
 
         if not self.callingback and self.external is None:
@@ -394,7 +394,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         """
 
         if self.external is None and not self.callingback:
-            if self.verbose:
+            if self.verbose >= 2:
                 print("Iteration #", self.iters)
 
         # Store new dual and/or gradient norm
@@ -434,7 +434,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
     def grad(self, params=None, ignorepenalty=False):
         """Computes or estimates the gradient of the entropy dual."""
 
-        if self.verbose and self.external is None and not self.callingback:
+        if self.verbose >= 2 and self.external is None and not self.callingback:
             print("Grad eval #" + str(self.gradevals))
 
         if params is not None:
@@ -450,7 +450,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
 
         G = self.feature_expectations() - self.K
 
-        if self.verbose and self.external is None:
+        if self.verbose >= 2 and self.external is None:
             print("  norm of gradient =", norm(G))
 
         # (We don't reset params to its prior value.)
@@ -464,7 +464,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
             G += penalty
             features_to_kill = np.where(np.isnan(penalty))[0]
             G[features_to_kill] = 0.0
-            if self.verbose and self.external is None:
+            if self.verbose >= 2 and self.external is None:
                 normG = norm(G)
                 print("  norm of regularized gradient =", normG)
 

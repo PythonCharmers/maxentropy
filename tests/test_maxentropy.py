@@ -360,7 +360,7 @@ def test_classifier():
         uniform_dist, n_dims=len(iris["feature_names"]), n_samples=10_000
     )
     clf = maxentropy.MinKLClassifier(
-        feature_functions=features, auxiliary_sampler=sampler
+        feature_functions=features, auxiliary_sampler=sampler, verbose=True
     )
     # For added fun, we test whether `predict` etc. can handle labels that don't start at 0 and non-consecutive labels:
     target_mapping = np.array(

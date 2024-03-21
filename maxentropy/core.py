@@ -952,7 +952,8 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
                 model.feature_functions, X_subset, matrix_format=self.matrix_format
             )
             k = np.asarray(F.mean(axis=0))
-            print(f"Fitting model for target {target}")
+            if self.verbose:
+                print(f"Fitting model for target {target}")
             model.fit(k)
 
         # Custom attribute to track if the estimator is fitted
