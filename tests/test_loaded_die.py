@@ -2,21 +2,22 @@
 
 """Tests for the maximum entropy package:
 
-    Unfair die example from Jaynes, Probability Theory: The Logic of Science, 2006
+Unfair die example from Jaynes, Probability Theory: The Logic of Science, 2006
 
-    Suppose you know that the long-run average number on the face of a 6-sided die
-    tossed many times is 4.5.
+Suppose you know that the long-run average number on the face of a 6-sided die
+tossed many times is 4.5.
 
-    What probability p(x) would you assign to rolling x on the next roll?
+What probability p(x) would you assign to rolling x on the next roll?
 
-    This code finds the probability distribution with maximal entropy
-    subject to the single constraint:
+This code finds the probability distribution with maximal entropy
+subject to the single constraint:
 
-    1.    E f(X) = 4.5
+1.    E f(X) = 4.5
 
-    where f(x) = x
+where f(x) = x
 
 """
+
 import numpy as np
 
 import maxentropy

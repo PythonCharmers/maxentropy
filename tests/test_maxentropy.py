@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-""" Test functions for maximum entropy module.
+"""Test functions for maximum entropy module.
 
 Author: Ed Schofield, 2003-2005
 Copyright: Ed Schofield, 2003-2005
@@ -10,11 +10,10 @@ from numpy.testing import assert_allclose
 import numpy as np
 import scipy.stats
 from scipy.special import logsumexp
+import pytest
 
 import maxentropy
 import maxentropy.utils as utils
-
-import pytest
 
 
 def test_logsumexp():
@@ -321,3 +320,57 @@ def test_dictsampler():
     assert_allclose(p.sum(), target_expectations[0], atol=1e-2)
     assert_allclose(p[0] + p[1], target_expectations[1], atol=1e-2)
     assert_allclose(p[0] + p[2], target_expectations[2], atol=1e-2)
+
+
+def test_classifier():
+    from sklearn.datasets import load_iris
+
+    iris = load_iris()
+
+    iris.keys()
+
+    X = iris.data
+    y = iris.target
+
+    def f0(X):
+        return X[:, 0] ** 2
+
+    def f1(X):
+        return X[:, 1] ** 2
+
+    def f2(X):
+        return X[:, 2] ** 2
+
+    def f3(X):
+        return X[:, 3] ** 2
+
+    def f4(X):
+        """
+        Petal length * petal width
+        """
+        return X[:, 1] * X[:, 2]
+
+    features = [f0, f1, f2, f3, f4]
+
+    stretched_minima, stretched_maxima = utils.bounds_stretched(X)
+    uniform_dist = scipy.stats.uniform(
+        stretched_minima, stretched_maxima - stretched_minima
+    )
+    sampler = utils.auxiliary_sampler_scipy(
+        uniform_dist, n_dims=len(iris["feature_names"]), n_samples=10_000
+    )
+    clf = maxentropy.MinKLClassifier(
+        feature_functions=features, auxiliary_sampler=sampler
+    )
+    # For added fun, we test whether `predict` etc. can handle labels that don't start at 0 and non-consecutive labels:
+    target_mapping = np.array(
+        [3, 6, 9]
+    )  # i.e. map iris target class 0 to 3, class 1 to 6, class 2 to 9
+    y = target_mapping[y]
+    clf.fit(X, y)
+    log_proba = clf.predict_log_proba(X)
+    proba = clf.predict_proba(X)
+    assert_allclose(np.log(proba), log_proba)
+    pred = clf.predict(X)
+    assert sorted(set(pred)) == sorted(target_mapping)
+    assert clf.score(X, y) > 0.9

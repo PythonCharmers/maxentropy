@@ -28,6 +28,33 @@ class DivergenceError(Exception):
         return repr(self.message)
 
 
+def bounds_stretched(X, stretch_factor=0.1):
+    """
+    Returns (min, max) pairs for each column of X, with each interval stretched
+    by the factor (1 + stretch_factor).
+
+    Parameters
+    ----------
+        X: a matrix of size (n, m)
+
+    Returns
+    -------
+        tuple:
+            (stretched_minima, stretched_maxima)
+
+        where each of stretched_minima and stretched_maxima is a length-m array
+        with the minima (or maxima) of each column, stretched as requested.
+    """
+    check_array(X)
+    minima = X.min(axis=0)
+    maxima = X.max(axis=0)
+    widths = maxima - minima
+    stretched_widths = widths * (1 + stretch_factor)
+    stretched_minima = minima - (stretched_widths - widths) / 2
+    stretched_maxima = maxima + (stretched_widths - widths) / 2
+    return (stretched_minima, stretched_maxima)
+
+
 def auxiliary_sampler_scipy(distribution, n_dims=1, n_samples=1):
     """
     A generator function for samples from the given scipy.stats distribution.
