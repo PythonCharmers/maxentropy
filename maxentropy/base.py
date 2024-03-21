@@ -95,7 +95,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         maxgtol=1e-7,
         avegtol=1e-7,
         tol=1e-8,
-        verbose=0
+        verbose=0,
     ):
         self.feature_functions = feature_functions
         self.features = lambda xs: evaluate_feature_matrix(

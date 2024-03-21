@@ -6,7 +6,8 @@ import math
 import types
 
 import numpy as np
-from sklearn.base import BaseEstimator, DensityMixin
+from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin, _fit_context
+from sklearn.utils.validation import check_is_fitted
 from scipy.special import logsumexp
 
 from maxentropy.utils import evaluate_feature_matrix, feature_sampler
@@ -125,9 +126,8 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         vectorized=True,
         matrix_format="csr_matrix",
         algorithm="CG",
-        verbose=0
+        verbose=0,
     ):
-
         super().__init__(
             feature_functions,
             prior_log_pdf=prior_log_pdf,
@@ -437,9 +437,8 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         vectorized=True,
         matrix_format="csc_matrix",
         algorithm="CG",
-        verbose=0
+        verbose=0,
     ):
-
         super().__init__(
             feature_functions=feature_functions,
             prior_log_pdf=prior_log_pdf,
@@ -888,7 +887,121 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
                 print("\n\t\t\tStored new minimum entropy dual: %f\n" % meandual)
 
 
-__all__ = [
-    "MinKLDensity",
-    "SamplingMinKLDensity",
-]
+class MinKLClassifier(ClassifierMixin, BaseEstimator):
+    def __init__(
+        self,
+        feature_functions,
+        auxiliary_sampler,
+        prior_log_pdf=None,
+        *,
+        vectorized=True,
+        matrix_format="csc_matrix",
+        algorithm="CG",
+        verbose=0,
+    ):
+        self.models = {}
+        self.feature_functions = feature_functions
+        self.auxiliary_sampler = auxiliary_sampler
+        self.prior_log_pdf = prior_log_pdf
+        self.vectorized = vectorized
+        self.matrix_format = matrix_format
+        self.algorithm = algorithm
+        self.verbose = verbose
+
+    # @_fit_context(prefer_skip_nested_validation=True)
+    def fit(self, X, y, sample_weight=None):
+        """Fit the baseline classifier.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training data.
+
+        y : array-like of shape (n_samples,) or (n_samples, n_outputs)
+            Target values.
+
+        sample_weight : array-like of shape (n_samples,), default=None
+            Sample weights.
+
+        Returns
+        -------
+        self : object
+            Returns the instance itself.
+        """
+        self._validate_data(X, cast_to_ndarray=False)
+        y = self._validate_data(y=y)
+
+        # Handle non-contiguous output labels y:
+        self.classes_, y = np.unique(y, return_inverse=True)
+
+        for target in range(len(self.classes_)):
+            self.models[target] = SamplingMinKLDensity(
+                self.feature_functions,
+                self.auxiliary_sampler,
+                prior_log_pdf=self.prior_log_pdf,
+                vectorized=self.vectorized,
+                matrix_format=self.matrix_format,
+                algorithm=self.algorithm,
+                verbose=self.verbose,
+            )
+
+        for target, model in self.models.items():
+            # Filter the rows of X to those whose corresponding y matches the target class:
+            X_subset = X[y == target]
+            F = evaluate_feature_matrix(
+                model.feature_functions, X_subset, matrix_format=self.matrix_format
+            )
+            k = np.asarray(F.mean(axis=0))
+            print(f"Fitting model for target {target}")
+            model.fit(k)
+
+        # Custom attribute to track if the estimator is fitted
+        self._is_fitted = True
+        return self
+
+    def predict_log_proba(self, X):
+        """
+        The log probability of the true model being for each target class of
+        those fitted.
+
+        The probability is defined as:
+
+            log [ (p_1(x), ..., p_m(x)) / sum p_i(x) ]
+
+            which can be reexpressed as:
+            (log p_1(x), ..., log p_m(x)) - logsumexp p_i(x)
+
+            where the p_i values are the values of the probability density (or
+            mass) functions (not necessarily normalized) for the m component
+            models.
+        """
+        check_is_fitted(self)
+        log_proba = np.array(
+            [model.predict_log_proba(X) for model in self.models.values()]
+        ).T
+        # We want this logically but it gives a shape error under NumPy's
+        # broadcasting rules:
+        # log_proba -= logsumexp(log_proba, axis=1)
+        log_proba = (log_proba.T - logsumexp(log_proba, axis=1)).T
+        return log_proba
+
+    def predict_proba(self, X):
+        """
+        The probability of the true model being for each target class of
+        those fitted.
+        """
+        return np.exp(self.predict_log_proba(X))
+
+    def predict(self, X):
+        log_proba = self.predict_log_proba(X)
+        predictions = self.classes_[np.argmax(log_proba, axis=1)]
+        return predictions
+
+    def __sklearn_is_fitted__(self):
+        """
+        Check fitted status and return a Boolean value.
+        """
+        return hasattr(self, "_is_fitted") and self._is_fitted
+
+
+__all__ = ["MinKLDensity", "SamplingMinKLDensity", "MinKLClassifier"]
