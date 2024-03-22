@@ -507,8 +507,8 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         (optionally) sample points too.
         """
 
-        if self.verbose >= 3:
-            print("(sampling)")
+        if self.verbose >= 1:
+            print("Sampling ...")
 
         # First delete the existing sample matrix to save memory
         # This matters, since these can be very large
@@ -553,8 +553,8 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
                 "Your sampler appears to be spitting out logprobs of the wrong dimensionality."
             )
 
-        if self.verbose >= 3:
-            print("(done)")
+        if self.verbose >= 1:
+            print("Finished sampling.")
 
         # Now clear the temporary variables that are no longer correct for this
         # sample
@@ -866,7 +866,7 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             if self.verbose >= 2:
                 print("(testing with sample %d)" % e)
             dualapprox.append(self.dual(ignorepenalty=True, ignoretest=True))
-            gradnorms.append(norm(self.grad(ignorepenalty=True)))
+            gradnorms.append(np.linalg.norm(self.grad(ignorepenalty=True)))
 
         # Reset to using the normal sample matrix sample_F
         self.external = None
