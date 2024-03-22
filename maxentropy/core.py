@@ -129,6 +129,7 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         algorithm="CG",
         max_iter=1000,
         verbose=0,
+        warm_start=False,
     ):
         super().__init__(
             feature_functions,
@@ -138,6 +139,7 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             algorithm=algorithm,
             max_iter=max_iter,
             verbose=verbose,
+            warm_start=warm_start,
         )
 
         # TODO: reinstate this in the future for a large speedup opportunity if
@@ -441,6 +443,7 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         matrix_format="csc_matrix",
         algorithm="CG",
         max_iter=1000,
+        warm_start=False,
         verbose=0,
     ):
         super().__init__(
@@ -450,6 +453,7 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             matrix_format=matrix_format,
             algorithm=algorithm,
             max_iter=max_iter,
+            warm_start=warm_start,
             verbose=verbose,
         )
         self.auxiliary_sampler = auxiliary_sampler
@@ -869,8 +873,8 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         self.clearcache()
 
         meandual = np.average(dualapprox, axis=0)
-        self.external_duals[self.iters] = dualapprox
-        self.external_gradnorms[self.iters] = gradnorms
+        self.external_duals[self.n_iter_] = dualapprox
+        self.external_gradnorms[self.n_iter_] = gradnorms
 
         if self.verbose:
             print(
@@ -914,6 +918,7 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         matrix_format="csc_matrix",
         algorithm="CG",
         max_iter=1000,
+        warm_start=False,
         verbose=0,
     ):
         self.models = {}
@@ -924,6 +929,7 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         self.matrix_format = matrix_format
         self.algorithm = algorithm
         self.max_iter = max_iter
+        self.warm_start = warm_start
         self.verbose = verbose
 
     # @_fit_context(prefer_skip_nested_validation=True)
@@ -970,6 +976,7 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
                 matrix_format=self.matrix_format,
                 algorithm=self.algorithm,
                 max_iter=self.max_iter,
+                warm_start=self.warm_start,
                 verbose=self.verbose,
             )
 

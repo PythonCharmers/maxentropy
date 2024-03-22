@@ -96,6 +96,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         avegtol=1e-7,
         tol=1e-8,
         max_iter=1000,
+        warm_start=False,
         verbose=0,
     ):
         self.feature_functions = feature_functions
@@ -105,6 +106,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
 
         self.prior_log_pdf = prior_log_pdf
         self.max_iter = max_iter
+        self.warm_start = warm_start
 
         # TODO: It would be nice to validate that prior_log_pdf is a
         # function. But a function passed into the numpy vectorize decorator
@@ -144,7 +146,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         # out with BigModel instances without implying
         # divergence to -inf
         self.callingback = False
-        self.iters = 0  # the number of iterations so far of the
+        self.n_iter_ = 0  # the number of iterations so far of the
         # optimization algorithm
         self.fnevals = 0
         self.gradevals = 0
@@ -397,14 +399,14 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
 
         if self.external is None and not self.callingback:
             if self.verbose >= 2:
-                print("Iteration #", self.iters)
+                print("Iteration #", self.n_iter_)
 
         # Store new dual and/or gradient norm
         if not self.callingback:
             if self.storeduals:
-                self.duals[self.iters] = self.dual()
+                self.duals[self.n_iter_] = self.dual()
             if self.storegradnorms:
-                self.gradnorms[self.iters] = norm(self.grad())
+                self.gradnorms[self.n_iter_] = norm(self.grad())
 
         if not self.callingback and self.external is None:
             if hasattr(self, "callback"):
@@ -417,7 +419,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         # Do we perform a test on external sample(s) every iteration?
         # Only relevant to BigModel objects
         if hasattr(self, "testevery") and self.testevery > 0:
-            if (self.iters + 1) % self.testevery != 0:
+            if (self.n_iter_ + 1) % self.testevery != 0:
                 if self.verbose:
                     print("Skipping test on external sample(s) ...")
             else:
@@ -431,7 +433,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
                     " or lower the threshold!"
                 )
 
-        self.iters += 1
+        self.n_iter_ += 1
 
     def grad(self, params=None, ignorepenalty=False):
         """Computes or estimates the gradient of the entropy dual."""
@@ -632,7 +634,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
 
         self.fnevals = 0
         self.gradevals = 0
-        self.iters = 0
+        self.n_iter_ = 0
         self.callingback = False
 
         # Clear the stored duals and gradient norms
