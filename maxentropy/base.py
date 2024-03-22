@@ -204,14 +204,20 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
 
         self._check_features()
 
-        if not self.warm_start:
+        # Sanity checks
+        try:
+            self.params
+        except AttributeError:
             self.resetparams(len(K))
         else:
-            # Sanity checks
             if len(self.params) != len(K):
                 raise ValueError(
                     "the number of target expectations does not match the number of features. We need len(np.squeeze(X)) == len(features)."
                 )
+
+        # Don't reset the number of function and gradient evaluations to zero
+        # self.fnevals = 0
+        # self.gradevals = 0
 
         # Make a copy of the parameters
         oldparams = np.array(self.params)
@@ -231,14 +237,72 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         newparams = retval.x
         func_calls = retval.nfev
 
+        # if self.algorithm == 'CG':
+        #     retval = optimize.fmin_cg(self.dual, oldparams, self.grad, (), self.avegtol, \
+        #                               maxiter=self.maxiter, full_output=1, \
+        #                               disp=self.verbose, retall=0,
+        #                               callback=callback)
+        #
+        #     (newparams, fopt, func_calls, grad_calls, warnflag) = retval
+        #
+        # elif self.algorithm == 'LBFGSB':
+        #     if callback is not None:
+        #         raise NotImplementedError("L-BFGS-B optimization algorithm"
+        #                 " does not yet support callback functions for"
+        #                 " testing with an external sample")
+        #     retval = optimize.fmin_l_bfgs_b(self.dual, oldparams, \
+        #                 self.grad, args=(), bounds=self.bounds, pgtol=self.maxgtol,
+        #                 maxfun=self.maxfun)
+        #     (newparams, fopt, d) = retval
+        #     warnflag, func_calls = d['warnflag'], d['funcalls']
+        #     if self.verbose:
+        #         print(self.algorithm + " optimization terminated successfully.")
+        #         print("\tFunction calls: " + str(func_calls))
+        #         # We don't have info on how many gradient calls the LBFGSB
+        #         # algorithm makes
+        #
+        # elif self.algorithm == 'BFGS':
+        #     retval = optimize.fmin_bfgs(self.dual, oldparams, \
+        #                                 self.grad, (), self.tol, \
+        #                                 maxiter=self.maxiter, full_output=1, \
+        #                                 disp=self.verbose, retall=0, \
+        #                                 callback=callback)
+        #
+        #     (newparams, fopt, gopt, Lopt, func_calls, grad_calls, warnflag) = retval
+        #
+        # elif self.algorithm == 'Powell':
+        #     retval = optimize.fmin_powell(self.dual, oldparams, args=(), \
+        #                            xtol=self.tol, ftol = self.tol, \
+        #                            maxiter=self.maxiter, full_output=1, \
+        #                            disp=self.verbose, retall=0, \
+        #                            callback=callback)
+        #
+        #     (newparams, fopt, direc, numiter, func_calls, warnflag) = retval
+        #     # fmin_powell seems to turn newparams into a 0d array
+        #     newparams = np.atleast_1d(newparams)
+        #
+        # elif self.algorithm == 'Nelder-Mead':
+        #     retval = optimize.fmin(self.dual, oldparams, args=(), \
+        #                            xtol=self.tol, ftol = self.tol, \
+        #                            maxiter=self.maxiter, full_output=1, \
+        #                            disp=self.verbose, retall=0, \
+        #                            callback=callback)
+        #
+        #     (newparams, fopt, numiter, func_calls, warnflag) = retval
+        #
+        # else:
+        #     raise AttributeError("the specified algorithm '" + str(self.algorithm)
+        #             + "' is unsupported.  Options are 'CG', 'LBFGSB', "
+        #             "'Nelder-Mead', 'Powell', and 'BFGS'")
+
         if np.any(self.params != newparams):
             self.setparams(newparams)
         self.func_calls = func_calls
         return self
 
-    def dual(self, ignorepenalty=False, ignoretest=False):
+    def dual(self, params=None, ignorepenalty=False, ignoretest=False):
         """Computes the Lagrangian dual L(theta) of the entropy of the
-        model, for the current vector theta=params.  Minimizing this
+        model, for the given vector theta=params.  Minimizing this
         function (without constraints) should fit the maximum entropy
         model subject to the given constraints.  These constraints are
         specified as the desired (target) values self.K for the
@@ -275,6 +339,9 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         if self.external is None and not self.callingback:
             if self.verbose >= 2:
                 print("Function eval #", self.fnevals)
+
+        if params is not None:
+            self.setparams(params)
 
         if not hasattr(self, "K"):
             raise ValueError(
@@ -368,11 +435,14 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
 
         self.n_iter_ += 1
 
-    def grad(self, ignorepenalty=False):
+    def grad(self, params=None, ignorepenalty=False):
         """Computes or estimates the gradient of the entropy dual."""
 
         if self.verbose >= 2 and self.external is None and not self.callingback:
             print("Grad eval #" + str(self.gradevals))
+
+        if params is not None:
+            self.setparams(params)
 
         if not hasattr(self, "K"):
             raise ValueError(
