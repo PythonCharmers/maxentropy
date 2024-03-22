@@ -95,6 +95,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         maxgtol=1e-7,
         avegtol=1e-7,
         tol=1e-8,
+        max_iter=1000,
         verbose=0,
     ):
         self.feature_functions = feature_functions
@@ -103,6 +104,8 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         )
 
         self.prior_log_pdf = prior_log_pdf
+        self.max_iter = max_iter
+
         # TODO: It would be nice to validate that prior_log_pdf is a
         # function. But a function passed into the numpy vectorize decorator
         # is no longer an instance of FunctionType.
@@ -135,7 +138,6 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         # ||params_k - params_{k-1}|| < paramstol:
         self.paramstol = 1e-5
 
-        self.maxiter = 1000
         self.maxfun = 1500
         self.mindual = -100.0  # The entropy dual must actually be
         # non-negative, but the estimate may be slightly
@@ -227,7 +229,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
             method=self.algorithm,
             jac=self.grad,
             tol=self.tol,
-            options={"maxiter": self.maxiter, "disp": self.verbose},
+            options={"maxiter": self.max_iter, "disp": self.verbose},
             callback=callback,
         )
         newparams = retval.x

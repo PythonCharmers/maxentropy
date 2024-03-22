@@ -6,8 +6,9 @@ import math
 import types
 
 import numpy as np
-from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin, _fit_context
-from sklearn.utils.validation import check_is_fitted
+from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin  # , _fit_context
+from sklearn.utils.validation import check_is_fitted, check_array
+from sklearn.utils.multiclass import check_classification_targets
 from scipy.special import logsumexp
 
 from maxentropy.utils import evaluate_feature_matrix, feature_sampler
@@ -126,6 +127,7 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         vectorized=True,
         matrix_format="csr_matrix",
         algorithm="CG",
+        max_iter=1000,
         verbose=0,
     ):
         super().__init__(
@@ -134,6 +136,7 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             vectorized=vectorized,
             matrix_format=matrix_format,
             algorithm=algorithm,
+            max_iter=max_iter,
             verbose=verbose,
         )
 
@@ -437,6 +440,7 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         vectorized=True,
         matrix_format="csc_matrix",
         algorithm="CG",
+        max_iter=1000,
         verbose=0,
     ):
         super().__init__(
@@ -445,6 +449,7 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             vectorized=vectorized,
             matrix_format=matrix_format,
             algorithm=algorithm,
+            max_iter=max_iter,
             verbose=verbose,
         )
         self.auxiliary_sampler = auxiliary_sampler
@@ -888,24 +893,37 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
 
 
 class MinKLClassifier(ClassifierMixin, BaseEstimator):
+    """
+    Parameters
+    ----------
+        prior_log_pdf: function
+            Pass a function that takes an (n, m) array X and returns a matrix of
+            log probability density values of shape (n, d), where d is the
+            number of classes. An example is the `predict_log_proba()` methods
+            of scikit-learn classifiers. This will be evaluated on the samples
+            produced by `auxiliary_sampler`.
+    """
+
     def __init__(
         self,
         feature_functions,
         auxiliary_sampler,
-        prior_log_pdf=None,
+        prior_log_proba_fn=None,
         *,
         vectorized=True,
         matrix_format="csc_matrix",
         algorithm="CG",
+        max_iter=1000,
         verbose=0,
     ):
         self.models = {}
         self.feature_functions = feature_functions
         self.auxiliary_sampler = auxiliary_sampler
-        self.prior_log_pdf = prior_log_pdf
+        self.prior_log_proba_fn = prior_log_proba_fn
         self.vectorized = vectorized
         self.matrix_format = matrix_format
         self.algorithm = algorithm
+        self.max_iter = max_iter
         self.verbose = verbose
 
     # @_fit_context(prefer_skip_nested_validation=True)
@@ -928,20 +946,30 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         self : object
             Returns the instance itself.
         """
-        self._validate_data(X, cast_to_ndarray=False)
+        X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
         y = self._validate_data(y=y)
 
+        check_classification_targets(y)
         # Handle non-contiguous output labels y:
         self.classes_, y = np.unique(y, return_inverse=True)
 
-        for target in range(len(self.classes_)):
-            self.models[target] = SamplingMinKLDensity(
+        self.prior_log_pdfs = {}
+
+        for target_class in range(len(self.classes_)):
+            if self.prior_log_proba_fn is None:
+                self.prior_log_pdfs[target_class] = None
+            else:
+                self.prior_log_pdfs[target_class] = lambda X: (
+                    self.prior_log_proba_fn(X)[:, target_class]
+                )
+            self.models[target_class] = SamplingMinKLDensity(
                 self.feature_functions,
                 self.auxiliary_sampler,
-                prior_log_pdf=self.prior_log_pdf,
+                prior_log_pdf=self.prior_log_pdfs[target_class],
                 vectorized=self.vectorized,
                 matrix_format=self.matrix_format,
                 algorithm=self.algorithm,
+                max_iter=self.max_iter,
                 verbose=self.verbose,
             )
 
@@ -976,7 +1004,12 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
             mass) functions (not necessarily normalized) for the m component
             models.
         """
+        # Check if fit has been called
         check_is_fitted(self)
+
+        # Input validation
+        X = check_array(X)
+
         log_proba = np.array(
             [model.predict_log_proba(X) for model in self.models.values()]
         ).T
