@@ -315,7 +315,8 @@ def test_dictsampler():
 
     # Manually test if the constraints are satisfied:
     F = model.features(samplespace)
-    p = model.pdf_from_features(F)
+    # p = model.pdf_from_features(F)
+    p = model.predict_proba(samplespace)
 
     assert_allclose(p.sum(), target_expectations[0], atol=1e-2)
     assert_allclose(p[0] + p[1], target_expectations[1], atol=1e-2)

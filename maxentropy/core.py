@@ -160,11 +160,11 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         if prior_log_pdf is not None:
             lp = prior_log_pdf(self.samplespace)
             self.priorlogprobs = np.reshape(lp, len(self.samplespace))
-        self.resetparams()
+        self.resetparams(len(feature_functions))
 
     def entropy(self):
         """
-        Compute the entropy of the model with the current parameters self.params_.
+        Compute the entropy of the model with the current parameters self.params.
         """
         # H = -sum(pk * log(pk))
         H = -np.sum(self.probdist() * self.log_probdist())
@@ -182,8 +182,8 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             raise Exception(
                 "Model needs to be initialized with a prior distribution to calculate KL divergence"
             )
-        prior_log_pdf = self.prior_log_pdf(self.samplespace)
-        kl_div = np.sum(self.probdist() * (self.log_probdist() - prior_log_pdf))
+        # prior_log_pdf = prior_log_pdf(self.samplespace)
+        kl_div = np.sum(self.probdist() * (self.log_probdist() - self.priorlogprobs))
         return kl_div
 
     def log_norm_constant(self):
@@ -507,8 +507,8 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         (optionally) sample points too.
         """
 
-        if self.verbose >= 3:
-            print("(sampling)")
+        if self.verbose >= 2:
+            print("Sampling...")
 
         # First delete the existing sample matrix to save memory
         # This matters, since these can be very large
@@ -528,15 +528,12 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             lp = self.prior_log_pdf(self.sample)
             self.priorlogprobs = np.reshape(lp, len(self.sample))
 
-        # Check whether the number m of features and the dimensionalities are correct
         n, m = self.sample_F.shape
-        try:
-            # The number of features is defined as the length of
-            # self.params, so first check if it exists:
-            self.params
-        except AttributeError:
-            self.params = np.zeros(m, float)
+        if self.params is None:
+            self.params = np.zeros(m, np.float64)
         else:
+            # Check whether the number m of features and the dimensionalities are correct.
+            # The number of features is defined as the length of # self.params.
             if m != len(self.params):
                 raise ValueError(
                     "the sample feature generator returned"
@@ -553,8 +550,8 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
                 "Your sampler appears to be spitting out logprobs of the wrong dimensionality."
             )
 
-        if self.verbose >= 3:
-            print("(done)")
+        if self.verbose >= 2:
+            print("Finished sampling.")
 
         # Now clear the temporary variables that are no longer correct for this
         # sample
@@ -743,14 +740,14 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             self.varE = mus.var(axis=0)  # column variances
             self.mu = mus.mean(axis=0)  # column means
 
-    def pdf_from_features(self, fx, *, log_prior_x=None):
-        """Returns the estimated density p_theta(x) at the point x with
-        feature statistic fx = f(x).  This is defined as
-            p_theta(x) = exp(theta.f(x)) / Z(theta),
-        where Z is the estimated value self.norm_constant() of the partition
-        function.
-        """
-        return np.exp(self.log_pdf_from_features(fx, log_prior_x=log_prior_x))
+    # def pdf_from_features(self, fx, *, log_prior_x=None):
+    #     """Returns the estimated density p_theta(x) at the point x with
+    #     feature statistic fx = f(x).  This is defined as
+    #         p_theta(x) = exp(theta.f(x)) / Z(theta),
+    #     where Z is the estimated value self.norm_constant() of the partition
+    #     function.
+    #     """
+    #     return np.exp(self.log_pdf_from_features(fx, log_prior_x=log_prior_x))
 
     def pdf_function(self):
         """Returns the estimated density p_theta(x) as a function p(f)
@@ -767,42 +764,42 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
 
         return p
 
-    def log_pdf_from_features(self, fx, *, log_prior_x=None):
-        """Returns the log of the estimated density p(x) = p_theta(x) at
-        the point x.  If log_prior_x is None, this is defined as:
-            log p(x) = theta.f(x) - log Z
-        where f(x) is given by the (m x 1) array fx.
+    # def log_pdf_from_features(self, fx, *, log_prior_x=None):
+    #     """Returns the log of the estimated density p(x) = p_theta(x) at
+    #     the point x.  This is defined as:
+    #         log p(x) = log p0(x) + theta.f(x) - log Z
+    #     where f(x) is given by the (m x 1) array fx.
 
-        If, instead, fx is a 2-d (n x m) array, this function interprets
-        each of its rows j=0,...,n-1 as a feature vector f(x_j), and
-        returns an array containing the log pdf value of each point x_j
-        under the current model.
+    #     If, instead, fx is a 2-d (n x m) array, this function interprets
+    #     each of its rows j=0,...,n-1 as a feature vector f(x_j), and
+    #     returns an array containing the log pdf value of each point x_j
+    #     under the current model.
 
-        log Z is estimated using the auxiliary sampler provided.
+    #     log Z is estimated using the auxiliary sampler provided.
 
-        The optional argument log_prior_x is the log of the prior density
-        p_0 at the point x (or at each point x_j if fx is 2-dimensional).
-        The log pdf of the model is then defined as
-            log p(x) = log p0(x) + theta.f(x) - log Z
-        and p then represents the model of minimum KL divergence D(p||p0)
-        instead of maximum entropy.
-        """
-        log_Z_est = self.log_norm_constant()
-        if len(fx.shape) == 1:
-            log_pdf = np.dot(self.params, fx) - log_Z_est
-        else:
-            log_pdf = fx.dot(self.params) - log_Z_est
-        if self.prior_log_pdf is not None:
-            # We expect log_prior_x to be passed in
-            if log_prior_x is None:
-                raise ValueError(
-                    "It appears your model was fitted to minimize "
-                    "KL divergence but no log_prior_x value is being passed in. "
-                    "This would incorrectly calculate the pdf; it would not "
-                    "integrate to 1."
-                )
-            log_pdf += log_prior_x
-        return log_pdf
+    #     The optional argument log_prior_x is the log of the prior density
+    #     p_0 at the point x (or at each point x_j if fx is 2-dimensional).
+    #     The log pdf of the model is then defined as
+    #         log p(x) = log p0(x) + theta.f(x) - log Z
+    #     and p then represents the model of minimum KL divergence D(p||p0)
+    #     instead of maximum entropy.
+    #     """
+    #     log_Z_est = self.log_norm_constant()
+    #     if len(fx.shape) == 1:
+    #         log_pdf = np.dot(self.params, fx) - log_Z_est
+    #     else:
+    #         log_pdf = fx.dot(self.params) - log_Z_est
+    #     if self.prior_log_pdf is not None:
+    #         # We expect log_prior_x to be passed in
+    #         if log_prior_x is None:
+    #             raise ValueError(
+    #                 "It appears your model was fitted to minimize "
+    #                 "KL divergence but no log_prior_x value is being passed in. "
+    #                 "This would incorrectly calculate the pdf; it would not "
+    #                 "integrate to 1."
+    #             )
+    #         log_pdf += log_prior_x
+    #     return log_pdf
 
     def settestsamples(self, F_list, logprob_list, testevery=1, priorlogprob_list=None):
         """Requests that the model be tested every 'testevery' iterations
@@ -900,7 +897,7 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
     """
     Parameters
     ----------
-        prior_log_pdf: function
+        prior_log_proba_fn: function
             Pass a function that takes an (n, m) array X and returns a matrix of
             log probability density values of shape (n, d), where d is the
             number of classes. An example is the `predict_log_proba()` methods
@@ -959,19 +956,19 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         # Handle non-contiguous output labels y:
         self.classes_, y = np.unique(y, return_inverse=True)
 
-        self.prior_log_pdfs = {}
+        prior_log_pdfs = {}
 
         for target_class in range(len(self.classes_)):
             if self.prior_log_proba_fn is None:
-                self.prior_log_pdfs[target_class] = None
+                prior_log_pdfs[target_class] = None
             else:
-                self.prior_log_pdfs[target_class] = lambda X: (
+                prior_log_pdfs[target_class] = lambda X: (
                     self.prior_log_proba_fn(X)[:, target_class]
                 )
             self.models[target_class] = SamplingMinKLDensity(
                 self.feature_functions,
                 self.auxiliary_sampler,
-                prior_log_pdf=self.prior_log_pdfs[target_class],
+                prior_log_pdf=prior_log_pdfs[target_class],
                 vectorized=self.vectorized,
                 matrix_format=self.matrix_format,
                 algorithm=self.algorithm,
@@ -1000,7 +997,7 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         The log probability of the true model being for each target class of
         those fitted.
 
-        The probability is defined as:
+        The probability vector for the m classes is defined as:
 
             log [ (p_1(x), ..., p_m(x)) / sum p_i(x) ]
 
