@@ -356,7 +356,9 @@ def evaluate_feature_matrix(
     Parameters
     ----------
     feature_functions :
-        a list of d feature functions f_i.
+        a list of d feature functions f_i. These will be passed xs and must return:
+            - a 1d array f_i(x) = (f_i(x_1), ..., f_i(x_n)) for j=1,...,n if vectorized is True; or
+            - a scalar f_i(x_j) if vectorized is False
 
     xs : either:
         1. a 1d array or sequence (e.g list) of observations [x_j
@@ -364,12 +366,12 @@ def evaluate_feature_matrix(
         2. a (n x m) matrix representing n m-dimensional
            observations xs[j, :] for j=1,...,n.
 
-    vectorized : bool (default False)
+    vectorized : bool (default True)
         If True, the feature functions f_i are assumed to be vectorized;
         then these will be passed all observations xs at once, in turn.
 
-        If False, the feature functions f_i will be evaluated on each x in the
-        sample xs, one at a time.
+        If False, the feature functions f_i will be evaluated on each x_j in the
+        sample xs, one at a time, for j=1,...,n.
 
     matrix_format : str (default 'csc_matrix')
         Options: 'ndarray', 'csc_matrix', 'csr_matrix', 'dok_matrix'.
@@ -408,7 +410,22 @@ def evaluate_feature_matrix(
         if verbose:
             print(f"Computing feature {i=} of {d=} ...")
         if vectorized:
-            F[:, i] = f_i(xs)
+            output = f_i(xs)
+            ndim = np.ndim(output)
+            if ndim == 0:
+                raise ValueError(
+                    f"Your feature function (for feature {i}) is returning scalar output. Change it to return 1-dimensional output or call this function with vectorized=False"
+                )
+            elif ndim == 2:
+                raise ValueError(
+                    f"Your feature function (for feature {i}) is returning 2d output. Change it to return 1d output."
+                )
+            try:
+                F[:, i] = output
+            except ValueError:
+                raise ValueError(
+                    f"Something is wrong with the output from your feature function (for feature {i}). Debug this! We want 1d output but we are getting:\n{output=}"
+                )
         else:
             try:
                 for j in range(n):
