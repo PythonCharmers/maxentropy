@@ -375,3 +375,20 @@ def test_classifier():
     pred = clf.predict(X)
     assert sorted(set(pred)) == sorted(target_mapping)
     assert clf.score(X, y) > 0.9
+
+
+def test_ideal_api():
+    from sklearn.datasets import load_breast_cancer
+
+    cancer = load_breast_cancer()
+
+    # We constrain all the values to be non-negative
+    feature_functions = [non_neg] * X_cancer.shape[1]
+
+    model = maxentropy.SamplingMinKLDensity(
+        sampler="uniform",
+        matrix_format="ndarray",
+        sampling_stretch_factor=0.1,
+        n_samples=10_000,
+    )
+    model.fit(X_cancer, feature_functions=feature_functions)

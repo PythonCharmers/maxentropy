@@ -3,15 +3,21 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import math
-import types
+from types import FunctionType, GeneratorType
 
 import numpy as np
+import scipy.stats
 from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin  # , _fit_context
 from sklearn.utils.validation import check_is_fitted, check_array
 from sklearn.utils.multiclass import check_classification_targets
 from scipy.special import logsumexp
 
-from maxentropy.utils import evaluate_feature_matrix, feature_sampler
+from maxentropy.utils import (
+    evaluate_feature_matrix,
+    feature_sampler,
+    auxiliary_sampler_scipy,
+    bounds_stretched,
+)
 from maxentropy.base import BaseMinKLDensity
 
 
@@ -120,7 +126,7 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
 
     def __init__(
         self,
-        feature_functions: list[types.FunctionType],
+        feature_functions: list[FunctionType],
         samplespace,
         prior_log_pdf=None,
         *,
@@ -459,7 +465,7 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         self.auxiliary_sampler = auxiliary_sampler
 
         # We require that auxiliary_sampler be a generator:
-        assert isinstance(auxiliary_sampler, types.GeneratorType)
+        assert isinstance(auxiliary_sampler, GeneratorType)
 
         self.sampleFgen = feature_sampler(
             feature_functions,
@@ -467,7 +473,6 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             vectorized=vectorized,
             matrix_format=matrix_format,
         )
-
         # Number of sample matrices to generate and use each iteration to estimate E and logZ.
         # Normally this will be 1. Setting this > 1 would be much slower but could offer
         # more accurate estimates toward the end of the fitting process, when we
@@ -902,13 +907,14 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
             log probability density values of shape (n, d), where d is the
             number of classes. An example is the `predict_log_proba()` methods
             of scikit-learn classifiers. This will be evaluated on the samples
-            produced by `auxiliary_sampler`.
+            produced by `auxiliary_sampler` and the outputs will be extracted
+            as column d for each class d in turn.
     """
 
     def __init__(
         self,
         feature_functions,
-        auxiliary_sampler,
+        auxiliary_sampler="uniform",
         prior_log_proba_fn=None,
         *,
         vectorized=True,
@@ -920,7 +926,8 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
     ):
         self.models = {}
         self.feature_functions = feature_functions
-        self.auxiliary_sampler = auxiliary_sampler
+        self.auxiliary_sampler = "uniform"
+        auxiliary_sampler
         self.prior_log_proba_fn = prior_log_proba_fn
         self.vectorized = vectorized
         self.matrix_format = matrix_format
@@ -928,6 +935,20 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         self.max_iter = max_iter
         self.warm_start = warm_start
         self.verbose = verbose
+
+    def make_uniform_sampler(
+        self, X: np.ndarray, stretch_factor: float = 0.1
+    ) -> GeneratorType:
+        stretched_minima, stretched_maxima = bounds_stretched(
+            X, stretch_factor=stretch_factor
+        )
+        uniform_dist = scipy.stats.uniform(
+            stretched_minima, stretched_maxima - stretched_minima
+        )
+        sampler = auxiliary_sampler_scipy(
+            uniform_dist, n_dims=X.shape[1], n_samples=10_000
+        )
+        return sampler
 
     # @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y, sample_weight=None):
@@ -959,12 +980,14 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         prior_log_pdfs = {}
 
         for target_class in range(len(self.classes_)):
+
             if self.prior_log_proba_fn is None:
                 prior_log_pdfs[target_class] = None
             else:
                 prior_log_pdfs[target_class] = lambda X: (
                     self.prior_log_proba_fn(X)[:, target_class]
                 )
+
             self.models[target_class] = SamplingMinKLDensity(
                 self.feature_functions,
                 self.auxiliary_sampler,
@@ -977,15 +1000,15 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
                 verbose=self.verbose,
             )
 
-        for target, model in self.models.items():
+        for target_class, model in self.models.items():
             # Filter the rows of X to those whose corresponding y matches the target class:
-            X_subset = X[y == target]
+            X_subset = X[y == target_class]
             F = evaluate_feature_matrix(
                 model.feature_functions, X_subset, matrix_format=self.matrix_format
             )
             k = np.asarray(F.mean(axis=0))
             if self.verbose:
-                print(f"Fitting model for target {target}")
+                print(f"Fitting model for target {target_class}")
             model.fit(k)
 
         # Custom attribute to track if the estimator is fitted
@@ -1014,13 +1037,14 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         # Input validation
         X = check_array(X)
 
-        log_proba = np.array(
+        log_scores = np.array(
             [model.predict_log_proba(X) for model in self.models.values()]
         ).T
-        # We want this logically but it gives a shape error under NumPy's
-        # broadcasting rules:
+        # Now normalize so we have log probabilities (i.e. whose antilogs sum to 1).
+        # We want the following logically but it gives a shape error under
+        # NumPy's broadcasting rules:
         # log_proba -= logsumexp(log_proba, axis=1)
-        log_proba = (log_proba.T - logsumexp(log_proba, axis=1)).T
+        log_proba = (log_scores.T - logsumexp(log_scores, axis=1)).T
         return log_proba
 
     def predict_proba(self, X):
@@ -1033,6 +1057,7 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
     def predict(self, X):
         log_proba = self.predict_log_proba(X)
         predictions = self.classes_[np.argmax(log_proba, axis=1)]
+        # pred = net._label_binarizer.inverse_transform(log_proba)
         return predictions
 
     def __sklearn_is_fitted__(self):
