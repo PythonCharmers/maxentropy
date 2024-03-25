@@ -88,9 +88,9 @@ import re
 from .base import BaseMinKLDensity
 from .utils import FeatureTransformer
 from .core import (
-    MinKLDensity,
-    MinKLClassifier,
+    DiscreteMinKLDensity,
     SamplingMinKLDensity,
+    MinKLClassifier,
 )
 
 

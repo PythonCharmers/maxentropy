@@ -8,9 +8,13 @@ Copyright: Ed Schofield, 2003-2005
 
 from numpy.testing import assert_allclose
 import numpy as np
+import pytest
 import scipy.stats
 from scipy.special import logsumexp
-import pytest
+from sklearn.datasets import load_wine, load_breast_cancer, load_iris, load_digits
+from sklearn.neural_network import MLPClassifier
+from sklearn.linear_model import LogisticRegression
+import toolz as tz
 
 import maxentropy
 import maxentropy.utils as utils
@@ -54,7 +58,7 @@ def test_entropy_loaded_die():
     target_expectations = [4.5]
 
     # X = np.atleast_2d(target_expectations)
-    model = maxentropy.MinKLDensity(features, samplespace)
+    model = maxentropy.DiscreteMinKLDensity(features, samplespace)
 
     # Fit the model
     model.fit(target_expectations)
@@ -74,7 +78,7 @@ def test_kl_div_loaded_die():
     def f0(x):
         return x in samplespace
 
-    uniform_model = maxentropy.MinKLDensity([f0], samplespace)
+    uniform_model = maxentropy.DiscreteMinKLDensity([f0], samplespace)
 
     def f1(x):
         return x
@@ -85,7 +89,7 @@ def test_kl_div_loaded_die():
     target_expectations = [1.0, 4.5]
 
     # X = np.atleast_2d(target_expectations)
-    model = maxentropy.MinKLDensity(
+    model = maxentropy.DiscreteMinKLDensity(
         features, samplespace, prior_log_pdf=uniform_model.predict_log_proba
     )
 
@@ -197,7 +201,7 @@ def test_evaluate_feature_matrix_2():
     features = [f0, f1, f2, f3, f4]
     models = {}
     for target_class, target_name in enumerate(iris["target_names"]):
-        models[target_class] = maxentropy.MinKLDensity(features, samplespace)
+        models[target_class] = maxentropy.DiscreteMinKLDensity(features, samplespace)
 
 
 """
@@ -233,7 +237,7 @@ def test_berger(algorithm="CG"):
     # Now set the desired feature expectations
     target_expectations = [1.0, 0.3, 0.5]
 
-    model = maxentropy.MinKLDensity(
+    model = maxentropy.DiscreteMinKLDensity(
         features, samplespace, vectorized=False, verbose=False, algorithm=algorithm
     )
 
@@ -377,10 +381,40 @@ def test_classifier():
     assert clf.score(X, y) > 0.9
 
 
+def test_current_api_fixme():
+
+    cancer = load_breast_cancer(as_frame=True)
+
+    df_cancer = cancer["data"]
+    X_cancer = df_cancer.values
+    y_cancer = cancer["target"]
+
+    def non_neg(x):
+        return x >= 0
+
+    auxiliary = scipy.stats.uniform(-0.2, 1.2)  # i.e. from -0.2 to 1.0
+
+    sampler = maxentropy.utils.auxiliary_sampler_scipy(auxiliary, n_samples=10_000)
+
+    model = maxentropy.SamplingMinKLDensity(
+        [non_neg],
+        sampler,
+        prior_log_pdf=prior_model.logpdf,
+        matrix_format="ndarray",
+    )
+
+    k = model.features(np.array([df_cancer["mean concavity"].mean()]))
+
+    model.fit(k)
+    print(f"Log likelihood of original model: {model.predict_log_proba(X_cancer)}")
+
+
 def test_ideal_api():
     from sklearn.datasets import load_breast_cancer
 
     cancer = load_breast_cancer()
+
+    feature = "mean concavity"
 
     # We constrain all the values to be non-negative
     feature_functions = [non_neg] * X_cancer.shape[1]
@@ -392,3 +426,44 @@ def test_ideal_api():
         n_samples=10_000,
     )
     model.fit(X_cancer, feature_functions=feature_functions)
+
+
+def test_classifier():
+
+    wine = load_wine()
+
+    X_wine = wine["data"]
+    y_wine = wine["target"]
+
+    net = MLPClassifier(
+        hidden_layer_sizes=(100,),
+        learning_rate_init=0.01,
+        max_iter=1000,
+        random_state=7,
+    )
+    net.fit(X_wine, y_wine)
+    print(f"Score of MLPClassifier = {net.score(X_wine, y_wine)}")
+
+    # None of the values in the wine data can be negative, so define constraints
+    # on these feature functions:
+
+    @tz.curry
+    def non_neg(column, x):
+        return x[:, column] >= 0
+
+    feature_functions = [non_neg(i) for i in range(len(wine["feature_names"]))]
+
+    # Extend sampling 10x the original range of the data so we get into negative territory ...
+
+    clf = maxentropy.MinKLClassifier(
+        feature_functions,
+        auxiliary_sampler="uniform",
+        n_samples=100_000,
+        sampling_bounds_stretch_factor=10.0,
+        prior_clf=net,
+        prior_class_probs=y_freq,
+        # prior_log_proba_fn=lambda xs: forward_pass_centered(net, slice(None), xs),
+        matrix_format="ndarray",
+        vectorized=True,
+    )
+    clf.fit(X_wine, y_wine)

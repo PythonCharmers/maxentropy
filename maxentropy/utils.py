@@ -7,10 +7,11 @@ License: BSD-style (see LICENSE.md in main source directory)
 from types import FunctionType, GeneratorType
 
 import numpy as np
+import toolz as tz
 
 # from numpy import log, exp, asarray, ndarray, empty
 import scipy.sparse
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 from sklearn.utils import check_array
 
 
@@ -566,6 +567,68 @@ def dictsampler(freq, size=()):
     """
     while True:
         yield dictsample(freq, size=size, return_probs="logprob")
+
+
+def make_uniform_sampler(
+    X: np.ndarray, stretch_factor: float = 0.1, n_samples=100_000
+) -> GeneratorType:
+    """
+    Returns a generator suitable for passing into SamplingMinKLDensity and
+    MinKLClassifier models.
+    """
+    stretched_minima, stretched_maxima = bounds_stretched(
+        X, stretch_factor=stretch_factor
+    )
+    uniform_dist = scipy.stats.uniform(
+        stretched_minima, stretched_maxima - stretched_minima
+    )
+    sampler = auxiliary_sampler_scipy(
+        uniform_dist, n_dims=X.shape[1], n_samples=n_samples
+    )
+    return sampler
+
+
+@tz.curry
+def prior_log_proba_x_given_k(
+    clf: ClassifierMixin,
+    prior_class_probs: np.ndarray,
+    target_class: int,
+    X: np.ndarray,
+):
+    """
+    This calculates the log of p(X | k = target_class) given a classifier `clf`
+    up to an additive constant (independent of k).
+
+    Since:
+
+        p(X | k) = p(k | x) / p(k) * p(x)
+
+    we have:
+
+        log p(X | k) = log p(k | X) - log p(k) + additive_constant_indep_of_k
+
+    Parameters
+    ----------
+    clf:
+        a sklearn-compatible Estimator with a `predict_log_proba()` method
+
+    prior_class_probs:
+        a vector of prior probabilities for each target class 1, ..., K.
+        One way to estimate this is:
+
+            np.bincount(y_train) / np.bincount(y_train).sum()
+
+    target_class:
+        the column index to extract from the result of calling
+        `clf.predict_log_proba()` and the index into `prior_class_probs`
+
+    X:
+        a 2d array (n, m) of observations to pass to `clf.predict_log_proba()`
+    """
+    output = clf.predict_log_proba(X)[:, target_class] - np.log(
+        prior_class_probs[target_class]
+    )
+    return output
 
 
 def _test():

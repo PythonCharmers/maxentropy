@@ -4,30 +4,43 @@ from __future__ import absolute_import
 
 import math
 from types import FunctionType, GeneratorType
+from typing import Sequence
 
 import numpy as np
 import scipy.stats
 from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin  # , _fit_context
-from sklearn.utils.validation import check_is_fitted, check_array
+from sklearn.utils.validation import (
+    check_X_y,
+    check_array,
+    check_is_fitted,
+    column_or_1d,
+)
 from sklearn.utils.multiclass import check_classification_targets
 from scipy.special import logsumexp
 
 from maxentropy.utils import (
     evaluate_feature_matrix,
     feature_sampler,
-    auxiliary_sampler_scipy,
-    bounds_stretched,
+    prior_log_proba_x_given_k,
+    make_uniform_sampler,
 )
 from maxentropy.base import BaseMinKLDensity
 
 
-class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
+class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
     """
-    A discrete model with minimum Kullback-Leibler (KL) divergence from
-    a given prior distribution subject to defined moment constraints.
+    A discrete probability distribution induced by moment constraints.
+
+    Represents a discrete model on an enumerate sample space (small enough to
+    iterate over) with minimum Kullback-Leibler (KL) divergence from a given
+    prior distribution subject to defined moment constraints.
 
     This includes models of maximum entropy ("MaxEnt") as a special case, with
     a flat prior distribution.
+
+    This is a "density" in the general scikit-learn sense, but the sample space
+    is discrete. See SamplingMinKLDensity for modelling continuous probability
+    distributions.
 
     This provides a principled method of assigning initial probabilities from
     prior information for Bayesian inference.
@@ -38,7 +51,7 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
     constraints. This includes the following discrete probability
     distributions:
 
-    - Uniform
+    - Discrete uniform
     - Bernoulli
     - Geometric
     - Binomial
@@ -148,6 +161,16 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             warm_start=warm_start,
         )
 
+        self.samplespace = samplespace
+        if prior_log_pdf is not None:
+            lp = prior_log_pdf(self.samplespace)
+            self.priorlogprobs = np.reshape(lp, len(self.samplespace))
+        self.resetparams(len(feature_functions))
+
+    def _validate_and_setup(self):
+        """
+        Various checks and setup stuff
+        """
         # TODO: reinstate this in the future for a large speedup opportunity if
         # there are many functions:
         # if isinstance(features, np.ndarray):
@@ -155,18 +178,26 @@ class MinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         # else:
 
         self.F = evaluate_feature_matrix(
-            feature_functions,
-            samplespace,
-            matrix_format=matrix_format,
-            vectorized=vectorized,
-            verbose=verbose,
+            self.feature_functions,
+            self.samplespace,
+            matrix_format=self.matrix_format,
+            vectorized=self.vectorized,
+            verbose=self.verbose,
         )
 
-        self.samplespace = samplespace
-        if prior_log_pdf is not None:
-            lp = prior_log_pdf(self.samplespace)
-            self.priorlogprobs = np.reshape(lp, len(self.samplespace))
-        self.resetparams(len(feature_functions))
+        # We require that auxiliary_sampler be a generator:
+        if isinstance(self.auxiliary_sampler, str):
+            if self.auxiliary_sampler == "uniform":
+                self.auxiliary_sampler = make_uniform_sampler(
+                    X,
+                    stretch_factor=self.sampling_bounds_stretch_factor,
+                    n_samples=self.n_samples,
+                )
+            else:
+                raise ValueError(
+                    'For `auxiliary_sampler`, pass the "uniform" or a generator.'
+                )
+        assert isinstance(auxiliary_sampler, GeneratorType)
 
     def entropy(self):
         """
@@ -445,6 +476,8 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         auxiliary_sampler,
         prior_log_pdf=None,
         *,
+        n_samples=100_000,
+        sampling_bounds_stretch_factor=1.0,
         vectorized=True,
         matrix_format="csc_matrix",
         algorithm="CG",
@@ -463,9 +496,8 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             verbose=verbose,
         )
         self.auxiliary_sampler = auxiliary_sampler
-
-        # We require that auxiliary_sampler be a generator:
-        assert isinstance(auxiliary_sampler, GeneratorType)
+        self.n_samples = n_samples
+        self.sampling_bounds_stretch_factor = sampling_bounds_stretch_factor
 
         self.sampleFgen = feature_sampler(
             feature_functions,
@@ -902,21 +934,27 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
     """
     Parameters
     ----------
-        prior_log_proba_fn: function
-            Pass a function that takes an (n, m) array X and returns a matrix of
-            log probability density values of shape (n, d), where d is the
-            number of classes. An example is the `predict_log_proba()` methods
-            of scikit-learn classifiers. This will be evaluated on the samples
-            produced by `auxiliary_sampler` and the outputs will be extracted
-            as column d for each class d in turn.
+        prior_clf: sklearn classifier
+            This must have a method `.predict_log_proba()` that takes an (n, m)
+            array X and returns a matrix of log class probabilities
+                [log p(k | X)]
+            of shape (n, k), where k is the number of classes, giving log p(k |
+            X). The probabilities must sum to 1 across each row.
+
+            This will be evaluated on the samples produced by
+            `auxiliary_sampler` and the outputs will be extracted as column d
+            for each class k in turn.
     """
 
     def __init__(
         self,
-        feature_functions,
-        auxiliary_sampler="uniform",
-        prior_log_proba_fn=None,
+        feature_functions: Sequence[FunctionType],
+        auxiliary_sampler: str | GeneratorType = "uniform",
         *,
+        n_samples=100_000,
+        sampling_bounds_stretch_factor=10.0,
+        prior_clf=None,
+        prior_class_probs=None,
         vectorized=True,
         matrix_format="csc_matrix",
         algorithm="CG",
@@ -924,31 +962,19 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         warm_start=False,
         verbose=0,
     ):
-        self.models = {}
         self.feature_functions = feature_functions
-        self.auxiliary_sampler = "uniform"
-        auxiliary_sampler
-        self.prior_log_proba_fn = prior_log_proba_fn
+        self.auxiliary_sampler = auxiliary_sampler
+        # self.prior_log_proba_fn = prior_log_proba_fn
+        self.prior_clf = prior_clf
+        self.prior_class_probs = prior_class_probs
+        self.n_samples = n_samples
+        self.sampling_bounds_stretch_factor = sampling_bounds_stretch_factor
         self.vectorized = vectorized
         self.matrix_format = matrix_format
         self.algorithm = algorithm
         self.max_iter = max_iter
         self.warm_start = warm_start
         self.verbose = verbose
-
-    def make_uniform_sampler(
-        self, X: np.ndarray, stretch_factor: float = 0.1
-    ) -> GeneratorType:
-        stretched_minima, stretched_maxima = bounds_stretched(
-            X, stretch_factor=stretch_factor
-        )
-        uniform_dist = scipy.stats.uniform(
-            stretched_minima, stretched_maxima - stretched_minima
-        )
-        sampler = auxiliary_sampler_scipy(
-            uniform_dist, n_dims=X.shape[1], n_samples=10_000
-        )
-        return sampler
 
     # @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y, sample_weight=None):
@@ -972,25 +998,33 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         """
         X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
         y = self._validate_data(y=y)
+        X, y = check_X_y(X, y)
 
         check_classification_targets(y)
         # Handle non-contiguous output labels y:
         self.classes_, y = np.unique(y, return_inverse=True)
 
+        self.prior_class_probs = column_or_1d(self.prior_class_probs)
+
+        if not self.warm_start:
+            self.models = {}
+
         prior_log_pdfs = {}
 
         for target_class in range(len(self.classes_)):
 
-            if self.prior_log_proba_fn is None:
+            if self.prior_clf is None:
                 prior_log_pdfs[target_class] = None
             else:
-                prior_log_pdfs[target_class] = lambda X: (
-                    self.prior_log_proba_fn(X)[:, target_class]
+                prior_log_pdfs[target_class] = prior_log_proba_x_given_k(
+                    self.prior_clf, self.prior_class_probs, target_class
                 )
 
             self.models[target_class] = SamplingMinKLDensity(
                 self.feature_functions,
                 self.auxiliary_sampler,
+                n_samples=self.n_samples,
+                sampling_bounds_stretch_factor=self.sampling_bounds_stretch_factor,
                 prior_log_pdf=prior_log_pdfs[target_class],
                 vectorized=self.vectorized,
                 matrix_format=self.matrix_format,
@@ -1020,16 +1054,25 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         The log probability of the true model being for each target class of
         those fitted.
 
-        The probability vector for the m classes is defined as:
+        The probability vector for class k given X is defined as:
 
-            log [ (p_1(x), ..., p_m(x)) / sum p_i(x) ]
+            p(k | x) = p(x | k) p(k) / p(x)
 
-            which can be reexpressed as:
-            (log p_1(x), ..., log p_m(x)) - logsumexp p_i(x)
+        So:
 
-            where the p_i values are the values of the probability density (or
-            mass) functions (not necessarily normalized) for the m component
-            models.
+            log p(k | x) = log p(x | k) + log p(k) - additive constant
+
+        We write p_1(x) = p(x | k=1) and normalize by re-expressing this:
+
+            log [ (p_1(x), ..., p_k(x)) / sum_i p_i(x) ]
+
+        as this:
+
+            (log p_1(x), ..., log p_k(x)) - logsumexp_i p_i(x)
+
+        where the p_i values are the values of the probability density (or
+        mass) functions (not necessarily normalized) for the m component
+        models.
         """
         # Check if fit has been called
         check_is_fitted(self)
@@ -1045,6 +1088,8 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         # NumPy's broadcasting rules:
         # log_proba -= logsumexp(log_proba, axis=1)
         log_proba = (log_scores.T - logsumexp(log_scores, axis=1)).T
+        # Now we add the prior class log probabilities:
+        log_proba += np.log(self.prior_class_probs)
         return log_proba
 
     def predict_proba(self, X):
