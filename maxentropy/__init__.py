@@ -104,8 +104,9 @@ __all__ = [
     "BaseMinKLDensity",
     "utils",
     "FeatureTransformer",
-    "MinKLDensity",
+    "DiscreteMinKLDensity",
     "SamplingMinKLDensity",
+    "MinKLClassifier",
 ]
 
 # PEP0440 compatible formatted version, see:

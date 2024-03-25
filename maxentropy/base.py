@@ -100,13 +100,31 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         verbose=0,
     ):
         self.feature_functions = feature_functions
-        self.features = lambda xs: evaluate_feature_matrix(
-            feature_functions, xs, vectorized=vectorized, matrix_format=matrix_format
-        )
-
         self.prior_log_pdf = prior_log_pdf
+        self.vectorized = vectorized
+        self.matrix_format = matrix_format
+        self.algorithm = algorithm
         self.max_iter = max_iter
         self.warm_start = warm_start
+        self.verbose = verbose
+        self.maxgtol = maxgtol
+
+        # Required tolerance of gradient on average (closeness to zero,axis=0)
+        # for CG optimization:
+        self.avegtol = avegtol
+
+        # Default tolerance for the other optimization algorithms:
+        self.tol = tol
+
+    def _validate_and_setup(self, X):
+        self.resetparams()
+
+        self.features = lambda xs: evaluate_feature_matrix(
+            self.feature_functions,
+            xs,
+            vectorized=self.vectorized,
+            matrix_format=self.matrix_format,
+        )
 
         # TODO: It would be nice to validate that prior_log_pdf is a
         # function. But a function passed into the numpy vectorize decorator
@@ -116,27 +134,23 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         #                                   types.MethodType))
         # TODO: ensure it's vectorized
 
-        if prior_log_pdf is None:
+        if self.prior_log_pdf is None:
             self.priorlogprobs = None
 
-        self.vectorized = vectorized
-        if matrix_format in ("csr_matrix", "csc_matrix", "ndarray"):
-            self.matrix_format = matrix_format
-        else:
+        if not self.matrix_format in ("csr_matrix", "csc_matrix", "ndarray"):
             raise ValueError("matrix format not understood")
-        self.algorithm = algorithm
-        self.verbose = verbose
 
-        self.params = None
+        # Clear the stored duals and gradient norms
+        self.duals = {}
+        self.gradnorms = {}
+        if hasattr(self, "external_duals"):
+            self.external_duals = {}
+        if hasattr(self, "external_gradnorms"):
+            self.external_gradnorms = {}
+        if hasattr(self, "external"):
+            self.external = None
 
-        self.maxgtol = maxgtol
-
-        # Required tolerance of gradient on average (closeness to zero,axis=0)
-        # for CG optimization:
-        self.avegtol = avegtol
-
-        # Default tolerance for the other optimization algorithms:
-        self.tol = tol
+        self.callingback = False
 
         # Default tolerance for stochastic approximation: stop if
         # ||params_k - params_{k-1}|| < paramstol:
@@ -203,6 +217,8 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
 
         # Store the desired feature expectations as a member variable
         self.K = K
+
+        self._validate_and_setup(X)
 
         self._check_features()
 
@@ -560,26 +576,12 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
             if hasattr(self, var):
                 delattr(self, var)
 
-    def resetparams(self, numfeatures=None):
+    def resetparams(self):
         """Reset the parameters self.params to zero, clearing the
         cache variables dependent on them.  Also reset the number of
         function and gradient evaluations to zero.
         """
-
-        if numfeatures:
-            m = numfeatures
-        else:
-            # Try to infer the number of parameters from existing state
-            if hasattr(self, "params"):
-                m = len(self.params)
-            elif hasattr(self, "F"):
-                m = self.F.shape[1]
-            elif hasattr(self, "sampleF"):
-                m = self.sampleF.shape[1]
-            elif hasattr(self, "K"):
-                m = len(self.K)
-            else:
-                raise ValueError("specify the number of features / parameters")
+        m = len(self.feature_functions)
 
         # Set parameters, clearing cache variables
         self.setparams(np.zeros(m, float))
@@ -591,17 +593,6 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         self.fnevals = 0
         self.gradevals = 0
         self.n_iter_ = 0
-        self.callingback = False
-
-        # Clear the stored duals and gradient norms
-        self.duals = {}
-        self.gradnorms = {}
-        if hasattr(self, "external_duals"):
-            self.external_duals = {}
-        if hasattr(self, "external_gradnorms"):
-            self.external_gradnorms = {}
-        if hasattr(self, "external"):
-            self.external = None
 
     def setcallback(self, callback=None, callback_dual=None, callback_grad=None):
         """Sets callback functions to be called every iteration, every

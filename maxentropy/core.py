@@ -162,15 +162,13 @@ class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         )
 
         self.samplespace = samplespace
-        if prior_log_pdf is not None:
-            lp = prior_log_pdf(self.samplespace)
-            self.priorlogprobs = np.reshape(lp, len(self.samplespace))
-        self.resetparams(len(feature_functions))
 
-    def _validate_and_setup(self):
+    def _validate_and_setup(self, X):
         """
         Various checks and setup stuff
         """
+        super()._validate_and_setup(X)
+
         # TODO: reinstate this in the future for a large speedup opportunity if
         # there are many functions:
         # if isinstance(features, np.ndarray):
@@ -185,19 +183,9 @@ class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             verbose=self.verbose,
         )
 
-        # We require that auxiliary_sampler be a generator:
-        if isinstance(self.auxiliary_sampler, str):
-            if self.auxiliary_sampler == "uniform":
-                self.auxiliary_sampler = make_uniform_sampler(
-                    X,
-                    stretch_factor=self.sampling_bounds_stretch_factor,
-                    n_samples=self.n_samples,
-                )
-            else:
-                raise ValueError(
-                    'For `auxiliary_sampler`, pass the "uniform" or a generator.'
-                )
-        assert isinstance(auxiliary_sampler, GeneratorType)
+        if self.prior_log_pdf is not None:
+            lp = self.prior_log_pdf(self.samplespace)
+            self.priorlogprobs = np.reshape(lp, len(self.samplespace))
 
     def entropy(self):
         """
@@ -476,13 +464,13 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         auxiliary_sampler,
         prior_log_pdf=None,
         *,
-        n_samples=100_000,
-        sampling_bounds_stretch_factor=1.0,
         vectorized=True,
         matrix_format="csc_matrix",
+        warm_start=False,
         algorithm="CG",
         max_iter=1000,
-        warm_start=False,
+        n_samples=100_000,
+        sampling_bounds_stretch_factor=1.0,
         verbose=0,
     ):
         super().__init__(
@@ -490,20 +478,39 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             prior_log_pdf=prior_log_pdf,
             vectorized=vectorized,
             matrix_format=matrix_format,
+            warm_start=warm_start,
             algorithm=algorithm,
             max_iter=max_iter,
-            warm_start=warm_start,
             verbose=verbose,
         )
         self.auxiliary_sampler = auxiliary_sampler
         self.n_samples = n_samples
         self.sampling_bounds_stretch_factor = sampling_bounds_stretch_factor
 
+    def _validate_and_setup(self, X):
+        """
+        Various checks and setup stuff
+        """
+        super()._validate_and_setup(X)
+        # We require that auxiliary_sampler be a generator:
+        if isinstance(self.auxiliary_sampler, str):
+            if self.auxiliary_sampler == "uniform":
+                self.auxiliary_sampler = make_uniform_sampler(
+                    X,
+                    stretch_factor=self.sampling_bounds_stretch_factor,
+                    n_samples=self.n_samples,
+                )
+            else:
+                raise ValueError(
+                    'For `auxiliary_sampler`, pass the "uniform" or a generator.'
+                )
+        assert isinstance(self.auxiliary_sampler, GeneratorType)
+
         self.sampleFgen = feature_sampler(
-            feature_functions,
-            auxiliary_sampler,
-            vectorized=vectorized,
-            matrix_format=matrix_format,
+            self.feature_functions,
+            self.auxiliary_sampler,
+            vectorized=self.vectorized,
+            matrix_format=self.matrix_format,
         )
         # Number of sample matrices to generate and use each iteration to estimate E and logZ.
         # Normally this will be 1. Setting this > 1 would be much slower but could offer
@@ -976,6 +983,12 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         self.warm_start = warm_start
         self.verbose = verbose
 
+    def _validate_and_setup(self, X):
+        """
+        Various checks and setup stuff
+        """
+        self.prior_class_probs = column_or_1d(self.prior_class_probs)
+
     # @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y, sample_weight=None):
         """Fit the baseline classifier.
@@ -1001,10 +1014,11 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         X, y = check_X_y(X, y)
 
         check_classification_targets(y)
+
         # Handle non-contiguous output labels y:
         self.classes_, y = np.unique(y, return_inverse=True)
 
-        self.prior_class_probs = column_or_1d(self.prior_class_probs)
+        self._validate_and_setup(X)
 
         if not self.warm_start:
             self.models = {}
