@@ -389,14 +389,14 @@ def evaluate_feature_matrix(
 
     if isinstance(xs, np.ndarray) and xs.ndim == 2:
         n, m = xs.shape
-        if m == 1 and vectorized:
-            # xs may be a column vector, i.e. (n x 1) array.
-            # In this case, reshape it to a 1d array. This
-            # makes it easier to define functions that
-            # operate on only one variable (a common case)
-            # given that sklearn's interface now forces 2D
-            # arrays X when calling .transform(X) and .fit(X).
-            xs = np.reshape(xs, n)
+        # if m == 1 and vectorized:
+        #     # xs may be a column vector, i.e. (n x 1) array.
+        #     # In this case, reshape it to a 1d array. This
+        #     # makes it easier to define functions that
+        #     # operate on only one variable (a common case)
+        #     # given that sklearn's interface now forces 2D
+        #     # arrays X when calling .transform(X) and .fit(X).
+        #     xs = np.reshape(xs, n)
     else:
         n, m = len(xs), 1
 

@@ -1095,16 +1095,30 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         # Input validation
         X = check_array(X)
 
+        """
+        Logic:
+
+        p(k | x) = p(x | k) p(k) / p(x)
+
+        and p(x) is constant in k. Now use:
+
+        \sum_k p(k | x) = 1
+
+        So we can calculate const by:
+        const = p(x | k=0) p(k=0) + p(x | k=1) p(k=1)
+
+        Finally, we have:
+        log p(k | x) = log p(x | k) + log p(k) - log const
+        """
+
         log_scores = np.array(
             [model.predict_log_proba(X) for model in self.models.values()]
         ).T
-        # Now normalize so we have log probabilities (i.e. whose antilogs sum to 1).
-        # We want the following logically but it gives a shape error under
-        # NumPy's broadcasting rules:
-        # log_proba -= logsumexp(log_proba, axis=1)
-        log_proba = (log_scores.T - logsumexp(log_scores, axis=1)).T
-        # Now we add the prior class log probabilities:
-        log_proba += np.log(self.prior_class_probs)
+        # These represent pdf values p(x | k) under each component model (density) k.
+
+        unnormalized_log_proba = log_scores + np.log(self.prior_class_probs)
+        log_const = logsumexp(unnormalized_log_proba, axis=1)
+        log_proba = (unnormalized_log_proba.T - log_const).T
         return log_proba
 
     def predict_proba(self, X):
