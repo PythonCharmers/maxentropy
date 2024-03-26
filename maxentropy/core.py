@@ -7,8 +7,7 @@ from types import FunctionType, GeneratorType
 from typing import Sequence
 
 import numpy as np
-import scipy.stats
-from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin  # , _fit_context
+from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin
 from sklearn.utils.validation import (
     check_X_y,
     check_array,
@@ -22,7 +21,6 @@ from maxentropy.utils import (
     evaluate_feature_matrix,
     feature_sampler,
     prior_log_proba_x_given_k,
-    make_uniform_sampler,
 )
 from maxentropy.base import BaseMinKLDensity
 
@@ -163,12 +161,10 @@ class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
 
         self.samplespace = samplespace
 
-    def _validate_and_setup(self, X):
+    def _setup_features(self):
         """
-        Various checks and setup stuff
+        Set up a matrix of features for the whole sample space.
         """
-        super()._validate_and_setup(X)
-
         # TODO: reinstate this in the future for a large speedup opportunity if
         # there are many functions:
         # if isinstance(features, np.ndarray):
@@ -186,6 +182,8 @@ class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         if self.prior_log_pdf is not None:
             lp = self.prior_log_pdf(self.samplespace)
             self.priorlogprobs = np.reshape(lp, len(self.samplespace))
+
+        self._check_features()
 
     def entropy(self):
         """
@@ -233,6 +231,9 @@ class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             log_p_dot += self.priorlogprobs
 
         self.logZ = logsumexp(log_p_dot)
+        if np.isnan(self.logZ):
+            raise ValueError("Oops: logZ is nan! Debug me!")
+
         return self.logZ
 
     def feature_expectations(self):
@@ -487,23 +488,10 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         self.n_samples = n_samples
         self.sampling_bounds_stretch_factor = sampling_bounds_stretch_factor
 
-    def _validate_and_setup(self, X):
+    def _setup_features(self):
         """
-        Various checks and setup stuff
+        Setup samplers and an initial sample with its feature matrix
         """
-        super()._validate_and_setup(X)
-        # We require that auxiliary_sampler be a generator:
-        if isinstance(self.auxiliary_sampler, str):
-            if self.auxiliary_sampler == "uniform":
-                self.auxiliary_sampler = make_uniform_sampler(
-                    X,
-                    stretch_factor=self.sampling_bounds_stretch_factor,
-                    n_samples=self.n_samples,
-                )
-            else:
-                raise ValueError(
-                    'For `auxiliary_sampler`, pass the "uniform" or a generator.'
-                )
         assert isinstance(self.auxiliary_sampler, GeneratorType)
 
         self.sampleFgen = feature_sampler(
@@ -512,6 +500,16 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             vectorized=self.vectorized,
             matrix_format=self.matrix_format,
         )
+        # self.priorlogprobs will be set by resample()
+        self.resample()
+        self._check_features()
+
+    def _validate_and_setup(self):
+        """
+        Various checks and setup stuff
+        """
+        super()._validate_and_setup()
+
         # Number of sample matrices to generate and use each iteration to estimate E and logZ.
         # Normally this will be 1. Setting this > 1 would be much slower but could offer
         # more accurate estimates toward the end of the fitting process, when we
@@ -533,9 +531,6 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         # Test for convergence every 'testevery' iterations, using one or
         # more external samples. If 0, don't test.
         self.testevery = 0
-
-        # self.priorlogprobs will be set by resample()
-        self.resample()
 
     def _check_features(self):
         """
@@ -565,6 +560,11 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
 
         # Now generate a new sample. Assume the format is (F, lp, sample):
         (self.sample_F, self.sample_log_probs, self.sample) = next(self.sampleFgen)
+        if np.any(np.isnan(self.sample_log_probs)):
+            fail_index = np.flatnonzero(np.isnan(self.sample_log_probs))[0]
+            raise ValueError(
+                f"Your auxiliary sampler is producing NaN log probabilities. The first row (observation) that it does this for is:\n{self.sample[fail_index]}. Debug this!"
+            )
 
         # Evaluate the prior log probabilities on the sample (for KL div
         # minimization)
@@ -573,7 +573,7 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             self.priorlogprobs = np.reshape(lp, len(self.sample))
 
         n, m = self.sample_F.shape
-        if self.params is None:
+        if not hasattr(self, "params"):
             self.params = np.zeros(m, np.float64)
         else:
             # Check whether the number m of features and the dimensionalities are correct.
@@ -617,6 +617,8 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         # Good, we have our logv.  Now:
         n = len(logv)
         self.logZapprox = logsumexp(logv) - math.log(n)
+        if np.isnan(self.logZapprox):
+            raise ValueError("Oops: logZapprox is nan! Debug me!")
         return self.logZapprox
 
     def feature_expectations(self):
@@ -983,7 +985,7 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         self.warm_start = warm_start
         self.verbose = verbose
 
-    def _validate_and_setup(self, X):
+    def _validate_and_setup(self):
         """
         Various checks and setup stuff
         """
@@ -1018,7 +1020,7 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         # Handle non-contiguous output labels y:
         self.classes_, y = np.unique(y, return_inverse=True)
 
-        self._validate_and_setup(X)
+        self._validate_and_setup()
 
         if not self.warm_start:
             self.models = {}
@@ -1051,13 +1053,12 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         for target_class, model in self.models.items():
             # Filter the rows of X to those whose corresponding y matches the target class:
             X_subset = X[y == target_class]
-            F = evaluate_feature_matrix(
-                model.feature_functions, X_subset, matrix_format=self.matrix_format
-            )
-            k = np.asarray(F.mean(axis=0))
+            # F = evaluate_feature_matrix(
+            #     model.feature_functions, X_subset, matrix_format=self.matrix_format
+            # )
             if self.verbose:
                 print(f"Fitting model for target {target_class}")
-            model.fit(k)
+            model.fit(X_subset)
 
         # Custom attribute to track if the estimator is fitted
         self._is_fitted = True

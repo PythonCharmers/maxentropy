@@ -12,7 +12,11 @@ from scipy import optimize
 from scipy.linalg import norm
 from sklearn.utils import check_array
 
-from maxentropy.utils import DivergenceError, evaluate_feature_matrix
+from maxentropy.utils import (
+    DivergenceError,
+    evaluate_feature_matrix,
+    make_uniform_sampler,
+)
 
 
 class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
@@ -116,7 +120,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         # Default tolerance for the other optimization algorithms:
         self.tol = tol
 
-    def _validate_and_setup(self, X):
+    def _validate_and_setup(self):
         self.resetparams()
 
         self.features = lambda xs: evaluate_feature_matrix(
@@ -137,7 +141,7 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         if self.prior_log_pdf is None:
             self.priorlogprobs = None
 
-        if not self.matrix_format in ("csr_matrix", "csc_matrix", "ndarray"):
+        if self.matrix_format not in ("csr_matrix", "csc_matrix", "ndarray"):
             raise ValueError("matrix format not understood")
 
         # Clear the stored duals and gradient norms
@@ -184,61 +188,55 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         self.external = None
         self.external_priorlogprobs = None
 
-    def fit(self, X, y=None):
+    @abstractmethod
+    def _setup_features(self, *args, **kwargs):
+        """
+        Set up samplers and create a matrix of features
+        """
+
+    def fit_expectations(self, k):
         """Fit the model of minimum divergence / maximum entropy subject to
-        constraints on the feature expectations <f_i(X)> = X[0].
+        constraints on the feature expectations <f_i(X)> = k[0].
 
         Parameters
         ----------
-        X : ndarray (dense) of shape [1, n_features]
-            A row vector (1 x n_features matrix) representing desired
-            expectations of features.  The curious shape is deliberate: models
-            of minimum divergence / maximum entropy depend on the data only
-            through the feature expectations.
-
-        y : is not used: placeholder to allow for usage in a Pipeline.
+        k : ndarray (dense) of shape n_features or (1 x n_features)
+            A row vector representing desired expectations of features.  The
+            curious shape is deliberate: models of minimum divergence / maximum
+            entropy depend on the data only through the feature expectations.
 
         Returns
         -------
         self
-
         """
-
-        X = np.atleast_2d(X)
-        X = check_array(X)
-        n_samples = X.shape[0]
+        # TODO: simplify this!
+        K = np.atleast_2d(k)
+        K = check_array(K)
+        n_samples = K.shape[0]
         if n_samples != 1:
-            raise ValueError("X must have only one row")
+            raise ValueError("k must have only one row")
+
+        self._validate_and_setup()
+        self._setup_features()
+
+        # if not (hasattr(self, "F") or hasattr(self, "sample_F")):
+        #     raise ValueError("Call _setup_features before calling fit_expectations")
 
         # Extract a 1d array of the feature expectations
         # K = np.asarray(X[0], float)
-        K = X[0, :]
+        K = K[0, :]
         assert K.ndim == 1
 
         # Store the desired feature expectations as a member variable
         self.K = K
 
-        self._validate_and_setup(X)
-
-        self._check_features()
-
-        if (not self.warm_start) or self.params is None:
+        if (not self.warm_start) or not hasattr(self, "params"):
             self.resetparams()
-        else:
-            # try:
-            #     self.params
-            # except AttributeError:
-            #     self.resetparams(len(K))
-            # else:
-            # Sanity check:
-            if len(self.params) != len(K):
-                raise ValueError(
-                    "the number of target expectations does not match the number of features. We need len(np.squeeze(X)) == len(features)."
-                )
-
-        # Don't reset the number of function and gradient evaluations to zero
-        # self.fnevals = 0
-        # self.gradevals = 0
+        # Sanity check:
+        if len(self.params) != len(K):
+            raise ValueError(
+                "the number of target expectations does not match the number of features. We need len(np.squeeze(X)) == len(features)."
+            )
 
         # Make a copy of the parameters
         self.oldparams = self.params.copy()
@@ -261,6 +259,53 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         if np.any(self.params != newparams):
             self.setparams(newparams)
         self.func_calls = func_calls
+
+        # Custom attribute to track if the estimator is fitted
+        self._is_fitted = True
+
+        return self
+
+    def fit(self, X, y=None):
+        """Fit the model of minimum divergence / maximum entropy subject to
+        constraints on the feature expectations <f_i(X)> = X[0].
+
+        Parameters
+        ----------
+        X : ndarray (dense) of shape (n_observations, n_features)
+            A matrix representing desired expectations of features.
+
+        y : is not used: placeholder to allow for usage in a Pipeline.
+
+        Returns
+        -------
+        self
+
+        """
+        X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
+
+        # We require that auxiliary_sampler be a generator:
+        if hasattr(self, "auxiliary_sampler") and isinstance(
+            self.auxiliary_sampler, str
+        ):
+            if self.auxiliary_sampler == "uniform":
+                self.auxiliary_sampler = make_uniform_sampler(
+                    X,
+                    stretch_factor=self.sampling_bounds_stretch_factor,
+                    n_samples=self.n_samples,
+                )
+            else:
+                raise ValueError(
+                    'For `auxiliary_sampler`, pass the "uniform" or a generator.'
+                )
+
+        self._setup_features()
+
+        F = evaluate_feature_matrix(
+            self.feature_functions, X, matrix_format=self.matrix_format
+        )
+        k = np.asarray(F.mean(axis=0))
+        self.fit_expectations(k)
+
         return self
 
     def dual(self, params=None, ignorepenalty=False, ignoretest=False):

@@ -61,7 +61,7 @@ def test_entropy_loaded_die():
     model = maxentropy.DiscreteMinKLDensity(features, samplespace)
 
     # Fit the model
-    model.fit(target_expectations)
+    model.fit_expectations(target_expectations)
 
     H = model.entropy()
     assert_allclose(H, model.entropydual())
@@ -78,7 +78,8 @@ def test_kl_div_loaded_die():
     def f0(x):
         return x in samplespace
 
-    uniform_model = maxentropy.DiscreteMinKLDensity([f0], samplespace)
+    uniform_model = maxentropy.DiscreteMinKLDensity([f0], samplespace, vectorized=False)
+    uniform_model.fit_expectations([1.0])
 
     def f1(x):
         return x
@@ -90,11 +91,14 @@ def test_kl_div_loaded_die():
 
     # X = np.atleast_2d(target_expectations)
     model = maxentropy.DiscreteMinKLDensity(
-        features, samplespace, prior_log_pdf=uniform_model.predict_log_proba
+        features,
+        samplespace,
+        vectorized=False,
+        prior_log_pdf=uniform_model.predict_log_proba,
     )
 
     # Fit the model
-    model.fit(target_expectations)
+    model.fit_expectations(target_expectations)
 
     KL = model.kl_divergence()
     assert KL >= 0
@@ -170,40 +174,6 @@ def test_evaluate_feature_matrix():
     assert F.dtype == np.int64
 
 
-@pytest.mark.xfail(reason="need to figure out this test!")
-def test_evaluate_feature_matrix_2():
-    from sklearn.datasets import load_iris
-
-    iris = load_iris()
-
-    X = iris.data
-    y = iris.target
-    samplespace = iris["target_names"]
-
-    def f0(X):
-        return X[:, 0]  # sepal length
-
-    def f1(X):
-        return X[:, 1]  # sepal width
-
-    def f2(X):
-        return X[:, 2]
-
-    def f3(X):
-        return X[:, 3]
-
-    def f4(X):
-        """
-        Petal length * petal width
-        """
-        return X[:, 1] * X[:, 2]
-
-    features = [f0, f1, f2, f3, f4]
-    models = {}
-    for target_class, target_name in enumerate(iris["target_names"]):
-        models[target_class] = maxentropy.DiscreteMinKLDensity(features, samplespace)
-
-
 """
 Machine translation example -- English to French -- from the paper 'A
 maximum entropy approach to natural language processing' by Berger et
@@ -242,7 +212,7 @@ def test_berger(algorithm="CG"):
     )
 
     # Fit the model
-    model.fit(target_expectations)
+    model.fit_expectations(target_expectations)
 
     # How well are the constraints satisfied?
     assert_allclose(target_expectations, model.expectations())
@@ -312,7 +282,7 @@ def test_dictsampler():
         algorithm="CG",
     )
 
-    model.fit(target_expectations)
+    model.fit_expectations(target_expectations)
 
     # How well does the model estimate that the constraints satisfied?
     assert_allclose(target_expectations, model.feature_expectations())
@@ -328,8 +298,6 @@ def test_dictsampler():
 
 
 def test_classifier():
-    from sklearn.datasets import load_iris
-
     iris = load_iris()
 
     iris.keys()
@@ -357,14 +325,16 @@ def test_classifier():
 
     features = [f0, f1, f2, f3, f4]
 
-    stretched_minima, stretched_maxima = utils.bounds_stretched(X)
+    stretched_minima, stretched_maxima = utils.bounds_stretched(
+        X, stretch_factor=1.0
+    )  # i.e. 100%
     uniform_dist = scipy.stats.uniform(
         stretched_minima, stretched_maxima - stretched_minima
     )
     sampler = utils.auxiliary_sampler_scipy(
         uniform_dist, n_dims=len(iris["feature_names"]), n_samples=10_000
     )
-    clf = maxentropy.DiscreteMinKLClassifier(
+    clf = maxentropy.MinKLClassifier(
         feature_functions=features, auxiliary_sampler=sampler, verbose=True
     )
     # For added fun, we test whether `predict` etc. can handle labels that don't start at 0 and non-consecutive labels:
@@ -406,7 +376,7 @@ def test_current_api_fixme():
 
     k = model.features(np.array([df_cancer["mean concavity"].mean()]))
 
-    model.fit(k)
+    model.fit_expectations(k)
     print(f"Log likelihood of original model: {model.predict_log_proba(X_cancer)}")
 
 
@@ -414,7 +384,10 @@ def test_current_api_fixme():
 def test_ideal_api():
     from sklearn.datasets import load_breast_cancer
 
-    cancer = load_breast_cancer()
+    cancer = load_breast_cancer(as_frame=True)
+    df_cancer = cancer["data"]
+    X_cancer = df_cancer.values
+    y_cancer = cancer["target"]
 
     feature = "mean concavity"
 
@@ -470,3 +443,4 @@ def test_classifier():
         vectorized=True,
     )
     clf.fit(X_wine, y_wine)
+    print(f"Score of the MinKLClassifier: {clf.score(X_wine, y_wine)}")
