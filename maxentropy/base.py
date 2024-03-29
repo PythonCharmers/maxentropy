@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import pickle
 from abc import ABCMeta, abstractmethod
+from collections.abc import Iterator
 import types
 
 import six
@@ -15,7 +16,6 @@ from sklearn.utils import check_array
 from maxentropy.utils import (
     DivergenceError,
     evaluate_feature_matrix,
-    make_uniform_sampler,
 )
 
 
@@ -284,19 +284,9 @@ class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
         X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
 
         # We require that auxiliary_sampler be a generator:
-        if hasattr(self, "auxiliary_sampler") and isinstance(
-            self.auxiliary_sampler, str
-        ):
-            if self.auxiliary_sampler == "uniform":
-                self.auxiliary_sampler = make_uniform_sampler(
-                    X,
-                    stretch_factor=self.sampling_bounds_stretch_factor,
-                    n_samples=self.n_samples,
-                )
-            else:
-                raise ValueError(
-                    'For `auxiliary_sampler`, pass the "uniform" or a generator.'
-                )
+        if hasattr(self, "auxiliary_sampler"):
+            if not isinstance(self.auxiliary_sampler, Iterator):
+                raise ValueError("Pass a generator as your `auxiliary_sampler`.")
 
         self._setup_features()
 

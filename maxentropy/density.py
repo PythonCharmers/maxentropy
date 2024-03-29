@@ -3,8 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import math
-from types import FunctionType, GeneratorType
-from typing import Sequence
+from collections.abc import Callable, Iterator, Sequence
 
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin
@@ -137,7 +136,7 @@ class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
 
     def __init__(
         self,
-        feature_functions: list[FunctionType],
+        feature_functions: list[Callable],
         samplespace,
         prior_log_pdf=None,
         *,
@@ -240,6 +239,7 @@ class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         """The vector E_p[f(X)] under the model p_theta of the vector of
         feature functions f_i over the sample space.
         """
+        self._validate_and_setup()
         # For discrete models, use the representation E_p[f(X)] = p . F
         if not hasattr(self, "F"):
             raise AttributeError("first set the feature matrix F")
@@ -470,8 +470,6 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
         warm_start=False,
         algorithm="CG",
         max_iter=1000,
-        n_samples=100_000,
-        sampling_bounds_stretch_factor=1.0,
         verbose=0,
     ):
         super().__init__(
@@ -485,14 +483,12 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             verbose=verbose,
         )
         self.auxiliary_sampler = auxiliary_sampler
-        self.n_samples = n_samples
-        self.sampling_bounds_stretch_factor = sampling_bounds_stretch_factor
 
     def _setup_features(self):
         """
         Setup samplers and an initial sample with its feature matrix
         """
-        assert isinstance(self.auxiliary_sampler, GeneratorType)
+        assert isinstance(self.auxiliary_sampler, Iterator)
 
         self.sampleFgen = feature_sampler(
             self.feature_functions,
@@ -957,13 +953,10 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
 
     def __init__(
         self,
-        feature_functions: Sequence[FunctionType],
-        auxiliary_sampler: str | GeneratorType = "uniform",
+        discriminative_clf,
+        feature_functions: Sequence[Callable],
+        auxiliary_sampler: Iterator,
         *,
-        n_samples=100_000,
-        sampling_bounds_stretch_factor=10.0,
-        prior_clf=None,
-        prior_class_probs=None,
         vectorized=True,
         matrix_format="csc_matrix",
         algorithm="CG",
@@ -971,13 +964,9 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         warm_start=False,
         verbose=0,
     ):
+        self.discriminative_clf = discriminative_clf
         self.feature_functions = feature_functions
         self.auxiliary_sampler = auxiliary_sampler
-        # self.prior_log_proba_fn = prior_log_proba_fn
-        self.prior_clf = prior_clf
-        self.prior_class_probs = prior_class_probs
-        self.n_samples = n_samples
-        self.sampling_bounds_stretch_factor = sampling_bounds_stretch_factor
         self.vectorized = vectorized
         self.matrix_format = matrix_format
         self.algorithm = algorithm
@@ -985,15 +974,17 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         self.warm_start = warm_start
         self.verbose = verbose
 
-    def _validate_and_setup(self):
-        """
-        Various checks and setup stuff
-        """
-        self.prior_class_probs = column_or_1d(self.prior_class_probs)
+    # def _validate_and_setup(self):
+    #     """
+    #     Various checks and setup stuff
+    #     """
+    #     self.prior_class_probs = column_or_1d(self.prior_class_probs)
 
     # @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X, y, sample_weight=None):
-        """Fit the baseline classifier.
+    def fit(self, X, y):
+        """
+        Fit the background "evidence" model p(x) with maximal entropy subject
+        to the constraints.
 
         Parameters
         ----------
@@ -1040,7 +1031,6 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
                 self.feature_functions,
                 self.auxiliary_sampler,
                 n_samples=self.n_samples,
-                sampling_bounds_stretch_factor=self.sampling_bounds_stretch_factor,
                 prior_log_pdf=prior_log_pdfs[target_class],
                 vectorized=self.vectorized,
                 matrix_format=self.matrix_format,

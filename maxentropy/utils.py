@@ -4,7 +4,7 @@ Utility routines for the maxentropy package.
 License: BSD-style (see LICENSE.md in main source directory)
 """
 
-from types import FunctionType, GeneratorType
+from collections.abc import Callable, Generator, Iterator
 
 import numpy as np
 import toolz as tz
@@ -253,8 +253,8 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
 
 # Previously sampleFgen, with different argument order
 def feature_sampler(
-    features: list[FunctionType],
-    sampler: GeneratorType,
+    features: list[Callable],
+    sampler: Iterator,
     *,
     matrix_format: str = "csc_matrix",
     vectorized: bool = True,
@@ -569,22 +569,19 @@ def dictsampler(freq, size=()):
         yield dictsample(freq, size=size, return_probs="logprob")
 
 
-def make_uniform_sampler(
-    X: np.ndarray, stretch_factor: float = 0.1, n_samples=100_000
-) -> GeneratorType:
+def make_uniform_sampler(minima, maxima, n_samples=100_000) -> Generator:
     """
     Returns a generator suitable for passing into SamplingMinKLDensity and
     MinKLClassifier models.
+
+    Pass bounds as a tuple (minima, maxima), where each has length equal to X.shape[1].
     """
-    stretched_minima, stretched_maxima = bounds_stretched(
-        X, stretch_factor=stretch_factor
-    )
-    uniform_dist = scipy.stats.uniform(
-        stretched_minima, stretched_maxima - stretched_minima
-    )
-    sampler = auxiliary_sampler_scipy(
-        uniform_dist, n_dims=X.shape[1], n_samples=n_samples
-    )
+    minima = np.ravel(minima)
+    maxima = np.ravel(maxima)
+    assert minima.shape == maxima.shape and minima.ndim == 1
+    n_dims = len(minima)
+    uniform_dist = scipy.stats.uniform(minima, maxima - minima)
+    sampler = auxiliary_sampler_scipy(uniform_dist, n_dims=n_dims, n_samples=n_samples)
     return sampler
 
 
