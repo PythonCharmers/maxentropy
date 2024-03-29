@@ -58,7 +58,7 @@ def test_entropy_loaded_die():
     target_expectations = [4.5]
 
     # X = np.atleast_2d(target_expectations)
-    model = maxentropy.DiscreteMinKLDensity(features, samplespace)
+    model = maxentropy.DiscreteMinDivergenceDensity(features, samplespace)
 
     # Fit the model
     model.fit_expectations(target_expectations)
@@ -78,7 +78,9 @@ def test_kl_div_loaded_die():
     def f0(x):
         return x in samplespace
 
-    uniform_model = maxentropy.DiscreteMinKLDensity([f0], samplespace, vectorized=False)
+    uniform_model = maxentropy.DiscreteMinDivergenceDensity(
+        [f0], samplespace, vectorized=False
+    )
     uniform_model.fit_expectations([1.0])
 
     def f1(x):
@@ -90,7 +92,7 @@ def test_kl_div_loaded_die():
     target_expectations = [1.0, 4.5]
 
     # X = np.atleast_2d(target_expectations)
-    model = maxentropy.DiscreteMinKLDensity(
+    model = maxentropy.DiscreteMinDivergenceDensity(
         features,
         samplespace,
         vectorized=False,
@@ -207,7 +209,7 @@ def test_berger(algorithm="CG"):
     # Now set the desired feature expectations
     target_expectations = [1.0, 0.3, 0.5]
 
-    model = maxentropy.DiscreteMinKLDensity(
+    model = maxentropy.DiscreteMinDivergenceDensity(
         features, samplespace, vectorized=False, verbose=False, algorithm=algorithm
     )
 
@@ -274,7 +276,7 @@ def test_dictsampler():
 
     auxiliary_sampler = utils.dictsampler(samplefreq, size=n)
 
-    model = maxentropy.SamplingMinKLDensity(
+    model = maxentropy.MinDivergenceDensity(
         features,
         auxiliary_sampler,
         vectorized=False,
@@ -334,7 +336,7 @@ def test_classifier():
     sampler = utils.auxiliary_sampler_scipy(
         uniform_dist, n_dims=len(iris["feature_names"]), n_samples=10_000
     )
-    clf = maxentropy.MinKLClassifier(
+    clf = maxentropy.MinDivergenceClassifier(
         feature_functions=features, auxiliary_sampler=sampler, verbose=True
     )
     # For added fun, we test whether `predict` etc. can handle labels that don't start at 0 and non-consecutive labels:
@@ -367,7 +369,7 @@ def test_current_api_fixme():
 
     sampler = maxentropy.utils.auxiliary_sampler_scipy(auxiliary, n_samples=10_000)
 
-    model = maxentropy.SamplingMinKLDensity(
+    model = maxentropy.MinDivergenceDensity(
         [non_neg],
         sampler,
         prior_log_pdf=prior_model.logpdf,
@@ -394,7 +396,7 @@ def test_ideal_api():
     # We constrain all the values to be non-negative
     feature_functions = [non_neg] * X_cancer.shape[1]
 
-    model = maxentropy.SamplingMinKLDensity(
+    model = maxentropy.MinDivergenceDensity(
         sampler="uniform",
         matrix_format="ndarray",
         sampling_stretch_factor=0.1,
@@ -431,7 +433,7 @@ def test_classifier():
     y_freq = np.bincount(y_wine)
     y_freq = y_freq / np.sum(y_freq)
 
-    clf = maxentropy.MinKLClassifier(
+    clf = maxentropy.MinDivergenceClassifier(
         feature_functions,
         auxiliary_sampler="uniform",
         n_samples=100_000,

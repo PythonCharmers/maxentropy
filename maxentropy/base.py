@@ -15,7 +15,7 @@ from maxentropy.utils import (
 )
 
 
-class BaseMinKLDensity(six.with_metaclass(ABCMeta)):
+class BaseMinDivergenceDensity(six.with_metaclass(ABCMeta)):
     """A base class providing generic functionality for Minimum KL divergence
     models using either exact summation or sampling. Cannot be instantiated.
 
@@ -691,7 +691,7 @@ def _test():
     doctest.testmod()
 
 
-__all__ = ["BaseMinKLDensity"]
+__all__ = ["BaseMinDivergenceDensity"]
 
 
 if __name__ == "__main__":

@@ -39,7 +39,7 @@ X = np.atleast_2d(target_expectations)
 
 
 def test_loaded_die():
-    model = maxentropy.DiscreteMinKLDensity(features, samplespace)
+    model = maxentropy.DiscreteMinDivergenceDensity(features, samplespace)
 
     # Fit the model
     model.fit(X)

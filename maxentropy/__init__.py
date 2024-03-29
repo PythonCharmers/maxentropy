@@ -85,10 +85,10 @@ dual() and grad().
 import warnings
 import re
 
-from .base import BaseMinKLDensity
+from .base import BaseMinDivergenceDensity
 from .utils import FeatureTransformer
-from .density import DiscreteMinKLDensity, SamplingMinKLDensity, D2GDensity
-from .classifier import MinKLClassifier
+from .density import DiscreteMinDivergenceDensity, MinDivergenceDensity, D2GDensity
+from .classifier import MinDivergenceClassifier
 
 
 # Make sure that DeprecationWarning within this package always gets printed
@@ -98,13 +98,13 @@ warnings.filterwarnings(
 
 
 __all__ = [
-    "BaseMinKLDensity",
+    "BaseMinDivergenceDensity",
     "utils",
     "FeatureTransformer",
-    "DiscreteMinKLDensity",
-    "SamplingMinKLDensity",
+    "DiscreteMinDivergenceDensity",
+    "MinDivergenceDensity",
     "D2GDensity",
-    "MinKLClassifier",
+    "MinDivergenceClassifier",
 ]
 
 # PEP0440 compatible formatted version, see:

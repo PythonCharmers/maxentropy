@@ -12,10 +12,12 @@ from maxentropy.utils import (
     feature_sampler,
     prior_log_proba_x_given_k,
 )
-from maxentropy.base import BaseMinKLDensity
+from maxentropy.base import BaseMinDivergenceDensity
 
 
-class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
+class DiscreteMinDivergenceDensity(
+    BaseEstimator, DensityMixin, BaseMinDivergenceDensity
+):
     """
     A discrete probability distribution induced by moment constraints.
 
@@ -27,7 +29,7 @@ class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
     a flat prior distribution.
 
     This is a "density" in the general scikit-learn sense, but the sample space
-    is discrete. See SamplingMinKLDensity for modelling continuous probability
+    is discrete. See MinDivergenceDensity for modelling continuous probability
     distributions.
 
     This provides a principled method of assigning initial probabilities from
@@ -360,7 +362,7 @@ class DiscreteMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
             show_x_and_px_values(n - max_output_lines // 2, n)
 
 
-class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
+class MinDivergenceDensity(BaseEstimator, DensityMixin, BaseMinDivergenceDensity):
     """
     A minimum KL-divergence / maximum-entropy (exponential-form) model
     on a continuous or large discrete sample space requiring Monte Carlo
@@ -1017,7 +1019,7 @@ class D2GDensity(BaseEstimator, DensityMixin):
         self.prior_class_probs = freq / np.sum(freq)
 
         # Now model p(x):
-        self.evidence_model = SamplingMinKLDensity(
+        self.evidence_model = MinDivergenceDensity(
             feature_functions=self.feature_functions,
             auxiliary_sampler=self.auxiliary_sampler,
             prior_log_pdf=None,
@@ -1070,4 +1072,4 @@ class D2GDensity(BaseEstimator, DensityMixin):
         return hasattr(self, "_is_fitted") and self._is_fitted
 
 
-__all__ = ["DiscreteMinKLDensity", "SamplingMinKLDensity", "D2GDensity"]
+__all__ = ["DiscreteMinDivergenceDensity", "MinDivergenceDensity", "D2GDensity"]

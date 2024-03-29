@@ -571,8 +571,8 @@ def dictsampler(freq, size=()):
 
 def make_uniform_sampler(minima, maxima, n_samples=100_000) -> Generator:
     """
-    Returns a generator suitable for passing into SamplingMinKLDensity and
-    MinKLClassifier models.
+    Returns a generator suitable for passing into MinDivergenceDensity and
+    MinDivergenceClassifier models.
 
     Pass bounds as a tuple (minima, maxima), where each has length equal to X.shape[1].
     """

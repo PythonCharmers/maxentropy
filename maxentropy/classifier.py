@@ -19,10 +19,10 @@ from scipy.special import logsumexp
 from maxentropy.utils import (
     prior_log_proba_x_given_k,
 )
-from maxentropy.density import SamplingMinKLDensity
+from maxentropy.density import MinDivergenceDensity
 
 
-class MinKLClassifier(ClassifierMixin, BaseEstimator):
+class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
     """
     Parameters
     ----------
@@ -114,7 +114,7 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
                     self.prior_clf, self.prior_class_probs, target_class
                 )
 
-            self.models[target_class] = SamplingMinKLDensity(
+            self.models[target_class] = MinDivergenceDensity(
                 self.feature_functions,
                 self.auxiliary_sampler,
                 prior_log_pdf=prior_log_pdfs[target_class],
@@ -217,4 +217,4 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         return hasattr(self, "_is_fitted") and self._is_fitted
 
 
-__all__ = ["MinKLClassifier"]
+__all__ = ["MinDivergenceClassifier"]
