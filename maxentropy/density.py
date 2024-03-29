@@ -1,18 +1,9 @@
-from __future__ import division
-from __future__ import print_function
-from __future__ import absolute_import
-
 import math
 from collections.abc import Callable, Iterator, Sequence
 
 import numpy as np
-from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin
-from sklearn.utils.validation import (
-    check_X_y,
-    check_array,
-    check_is_fitted,
-    column_or_1d,
-)
+from sklearn.base import BaseEstimator, DensityMixin
+from sklearn.utils.validation import check_X_y
 from sklearn.utils.multiclass import check_classification_targets
 from scipy.special import logsumexp
 
@@ -935,8 +926,19 @@ class SamplingMinKLDensity(BaseEstimator, DensityMixin, BaseMinKLDensity):
                 print("\n\t\t\tStored new minimum entropy dual: %f\n" % meandual)
 
 
-class MinKLClassifier(ClassifierMixin, BaseEstimator):
+class D2GDensity(BaseEstimator, DensityMixin):
     """
+    A "discriminative to generative" density model p(x | k) induced from a
+    discriminative classifier and feature constraints.
+
+    Requires:
+        - a fitted discriminative classifier whose predict_log_proba() method
+          predicts the (log) probability p(k | x) of each class k given an
+          observation x;
+        - feature functions f_i(X) whose expectations to constrain as E f_i(X) = b_i
+        - a training dataset X from which we count the empirical frequencies b
+          and frequencies of each class.
+
     Parameters
     ----------
         prior_clf: sklearn classifier
@@ -1011,44 +1013,24 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         # Handle non-contiguous output labels y:
         self.classes_, y = np.unique(y, return_inverse=True)
 
-        self._validate_and_setup()
+        freq = np.bincount(y)
+        self.prior_class_probs = freq / np.sum(freq)
 
-        if not self.warm_start:
-            self.models = {}
-
-        prior_log_pdfs = {}
-
-        for target_class in range(len(self.classes_)):
-
-            if self.prior_clf is None:
-                prior_log_pdfs[target_class] = None
-            else:
-                prior_log_pdfs[target_class] = prior_log_proba_x_given_k(
-                    self.prior_clf, self.prior_class_probs, target_class
-                )
-
-            self.models[target_class] = SamplingMinKLDensity(
-                self.feature_functions,
-                self.auxiliary_sampler,
-                n_samples=self.n_samples,
-                prior_log_pdf=prior_log_pdfs[target_class],
-                vectorized=self.vectorized,
-                matrix_format=self.matrix_format,
-                algorithm=self.algorithm,
-                max_iter=self.max_iter,
-                warm_start=self.warm_start,
-                verbose=self.verbose,
-            )
-
-        for target_class, model in self.models.items():
-            # Filter the rows of X to those whose corresponding y matches the target class:
-            X_subset = X[y == target_class]
-            # F = evaluate_feature_matrix(
-            #     model.feature_functions, X_subset, matrix_format=self.matrix_format
-            # )
-            if self.verbose:
-                print(f"Fitting model for target {target_class}")
-            model.fit(X_subset)
+        # Now model p(x):
+        self.evidence_model = SamplingMinKLDensity(
+            feature_functions=self.feature_functions,
+            auxiliary_sampler=self.auxiliary_sampler,
+            prior_log_pdf=None,
+            vectorized=self.vectorized,
+            matrix_format=self.matrix_format,
+            warm_start=self.warm_start,
+            algorithm=self.algorithm,
+            max_iter=self.max_iter,
+            verbose=self.verbose,
+        )
+        self.evidence_model.fit(
+            X, y
+        )  # How does this interact with non-contiguous labels given the code above?
 
         # Custom attribute to track if the estimator is fitted
         self._is_fitted = True
@@ -1056,60 +1038,17 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
 
     def predict_log_proba(self, X):
         """
-        The log probability of the true model being for each target class of
-        those fitted.
+        The log probability of the observation x under this generative model
+        p(x | k) for each target class k.
 
-        The probability vector for class k given X is defined as:
-
-            p(k | x) = p(x | k) p(k) / p(x)
-
-        So:
-
-            log p(k | x) = log p(x | k) + log p(k) - additive constant
-
-        We write p_1(x) = p(x | k=1) and normalize by re-expressing this:
-
-            log [ (p_1(x), ..., p_k(x)) / sum_i p_i(x) ]
-
-        as this:
-
-            (log p_1(x), ..., log p_k(x)) - logsumexp_i p_i(x)
-
-        where the p_i values are the values of the probability density (or
-        mass) functions (not necessarily normalized) for the m component
-        models.
-        """
-        # Check if fit has been called
-        check_is_fitted(self)
-
-        # Input validation
-        X = check_array(X)
-
-        """
-        Logic:
-
-        p(k | x) = p(x | k) p(k) / p(x)
-
-        and p(x) is constant in k. Now use:
-
-        \sum_k p(k | x) = 1
-
-        So we can calculate const by:
-        const = p(x | k=0) p(k=0) + p(x | k=1) p(k=1)
-
-        Finally, we have:
-        log p(k | x) = log p(x | k) + log p(k) - log const
+        Output: ndarray of shape (N, K), with one column for each of the target
+        classes k.
         """
 
-        log_scores = np.array(
-            [model.predict_log_proba(X) for model in self.models.values()]
-        ).T
-        # These represent pdf values p(x | k) under each component model (density) k.
-
-        unnormalized_log_proba = log_scores + np.log(self.prior_class_probs)
-        log_const = logsumexp(unnormalized_log_proba, axis=1)
-        log_proba = (unnormalized_log_proba.T - log_const).T
-        return log_proba
+        log_p_x_given_k = prior_log_proba_x_given_k(
+            self.discriminative_clf, self.evidence_model, self.prior_class_probs, X
+        )
+        return log_p_x_given_k
 
     def predict_proba(self, X):
         """
@@ -1131,4 +1070,4 @@ class MinKLClassifier(ClassifierMixin, BaseEstimator):
         return hasattr(self, "_is_fitted") and self._is_fitted
 
 
-__all__ = ["MinKLDensity", "SamplingMinKLDensity", "MinKLClassifier"]
+__all__ = ["DiscreteMinKLDensity", "SamplingMinKLDensity", "D2GDensity"]

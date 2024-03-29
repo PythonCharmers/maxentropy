@@ -87,11 +87,8 @@ import re
 
 from .base import BaseMinKLDensity
 from .utils import FeatureTransformer
-from .core import (
-    DiscreteMinKLDensity,
-    SamplingMinKLDensity,
-    MinKLClassifier,
-)
+from .density import DiscreteMinKLDensity, SamplingMinKLDensity, D2GDensity
+from .classifier import MinKLClassifier
 
 
 # Make sure that DeprecationWarning within this package always gets printed
@@ -106,6 +103,7 @@ __all__ = [
     "FeatureTransformer",
     "DiscreteMinKLDensity",
     "SamplingMinKLDensity",
+    "D2GDensity",
     "MinKLClassifier",
 ]
 

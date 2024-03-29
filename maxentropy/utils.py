@@ -11,7 +11,7 @@ import toolz as tz
 
 # from numpy import log, exp, asarray, ndarray, empty
 import scipy.sparse
-from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
+from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin, DensityMixin
 from sklearn.utils import check_array
 
 
@@ -587,9 +587,9 @@ def make_uniform_sampler(minima, maxima, n_samples=100_000) -> Generator:
 
 @tz.curry
 def prior_log_proba_x_given_k(
-    clf: ClassifierMixin,
+    prior_clf: ClassifierMixin,
+    evidence_clf: DensityMixin,
     prior_class_probs: np.ndarray,
-    target_class: int,
     X: np.ndarray,
 ):
     """
@@ -598,32 +598,44 @@ def prior_log_proba_x_given_k(
 
     Since:
 
-        p(X | k) = p(k | x) / p(k) * p(x)
+        p(X | k) = p(k | x) * p(x) / p(k)
 
     we have:
 
-        log p(X | k) = log p(k | X) - log p(k) + additive_constant_indep_of_k
+        log p(X | k) = log p(k | X) - log p(k) + p(x)
 
     Parameters
     ----------
-    clf:
-        a sklearn-compatible Estimator with a `predict_log_proba()` method
+    prior_clf:
+        a fitted sklearn-compatible classifier with a `predict_log_proba()` method
+
+    evidence_clf:
+        a fitted sklearn-compatible density whose `predict_log_proba(x)` method
+        gives the background probability density p(x) of the observation x
+        (independent of class k).
 
     prior_class_probs:
-        a vector of prior probabilities for each target class 1, ..., K.
+        a vector of prior probabilities p(k) for each target class 0, ..., K-1.
         One way to estimate this is:
 
             np.bincount(y_train) / np.bincount(y_train).sum()
 
-    target_class:
-        the column index to extract from the result of calling
-        `clf.predict_log_proba()` and the index into `prior_class_probs`
+        Another is:
+
+            pd.Series(y_train).value_counts(normalize=True).sort_index()
 
     X:
         a 2d array (n, m) of observations to pass to `clf.predict_log_proba()`
+
+    Returns
+    -------
+    Returns a matrix with K columns, one for each of the classes k \in {1, ..., K}.
     """
-    output = clf.predict_log_proba(X)[:, target_class] - np.log(
-        prior_class_probs[target_class]
+    # output = prior_clf.predict_proba(X) * np.reshape(evidence_clf.predict_proba(X), (-1, 1)) / prior_class_probs
+    output = (
+        prior_clf.predict_log_proba(X)
+        + np.reshape(evidence_clf.predict_log_proba(X), (-1, 1))
+        - np.log(prior_class_probs)
     )
     return output
 
