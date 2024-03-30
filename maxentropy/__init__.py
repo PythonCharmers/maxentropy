@@ -88,7 +88,7 @@ import re
 from .base import BaseMinDivergenceDensity
 from .utils import FeatureTransformer
 from .density import DiscreteMinDivergenceDensity, MinDivergenceDensity, D2GDensity
-from .classifier import MinDivergenceClassifier
+from .classifier import MinDivergenceClassifier, D2GClassifier
 
 
 # Make sure that DeprecationWarning within this package always gets printed
@@ -104,6 +104,7 @@ __all__ = [
     "DiscreteMinDivergenceDensity",
     "MinDivergenceDensity",
     "D2GDensity",
+    "D2GClassifier",
     "MinDivergenceClassifier",
 ]
 

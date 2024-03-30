@@ -549,6 +549,14 @@ class MinDivergenceDensity(BaseEstimator, DensityMixin, BaseMinDivergenceDensity
 
         # Now generate a new sample. Assume the format is (F, lp, sample):
         (self.sample_F, self.sample_log_probs, self.sample) = next(self.sampleFgen)
+        # Note: For now, we require that sample_log_probs be 1-dimensional -- i.e. for
+        # p(x), not for p(x | k) for multiple classes k. This could perhaps be
+        # loosened up later with some thought.
+        assert (
+            self.sample_F.ndim == 2
+            and self.sample_log_probs.ndim == 1
+            and self.sample_F.shape[0] == len(self.sample_log_probs)
+        )
         if np.any(np.isnan(self.sample_log_probs)):
             fail_index = np.flatnonzero(np.isnan(self.sample_log_probs))[0]
             raise ValueError(
