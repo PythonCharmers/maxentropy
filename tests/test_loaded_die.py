@@ -42,10 +42,10 @@ def test_loaded_die():
     model = maxentropy.DiscreteMinDivergenceDensity(features, samplespace)
 
     # Fit the model
-    model.fit(X)
+    model.fit_expectations(target_expectations)
 
     # How well are the constraints satisfied?
-    assert np.allclose(X[0, :], model.expectations())
+    assert np.allclose(X[0, :], model.feature_expectations())
 
     # Manually test if the constraints are satisfied:
     p = model.probdist()

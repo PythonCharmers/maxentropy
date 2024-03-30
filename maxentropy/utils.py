@@ -8,6 +8,7 @@ from collections.abc import Callable, Generator, Iterator
 
 import numpy as np
 import toolz as tz
+from typing import Optional
 
 # from numpy import log, exp, asarray, ndarray, empty
 import scipy.sparse
@@ -417,10 +418,12 @@ def evaluate_feature_matrix(
                 raise ValueError(
                     f"Your feature function (for feature {i}) is returning scalar output. Change it to return 1-dimensional output or call this function with vectorized=False"
                 )
-            elif ndim == 2:
-                raise ValueError(
-                    f"Your feature function (for feature {i}) is returning 2d output. Change it to return 1d output."
-                )
+            # elif ndim == 2:
+            #     vec_output = np.ravel(output)
+            #     if vec_output.ndim != 1:
+            #         raise ValueError(
+            #             f"Your feature function (for feature {i}) is returning 2d output. Change it to return 1d output."
+            #         )
             try:
                 F[:, i] = output
             except ValueError:
@@ -585,12 +588,12 @@ def make_uniform_sampler(minima, maxima, n_samples=100_000) -> Generator:
     return sampler
 
 
-@tz.curry
 def prior_log_proba_x_given_k(
     prior_clf: ClassifierMixin,
-    evidence_clf: DensityMixin,
     prior_class_probs: np.ndarray,
     X: np.ndarray,
+    *,
+    evidence_clf: Optional[DensityMixin] = None,
 ):
     """
     This calculates the log of p(X | k = target_class) given a classifier `clf`
@@ -604,15 +607,11 @@ def prior_log_proba_x_given_k(
 
         log p(X | k) = log p(k | X) - log p(k) + p(x)
 
+
     Parameters
     ----------
     prior_clf:
         a fitted sklearn-compatible classifier with a `predict_log_proba()` method
-
-    evidence_clf:
-        a fitted sklearn-compatible density whose `predict_log_proba(x)` method
-        gives the background probability density p(x) of the observation x
-        (independent of class k).
 
     prior_class_probs:
         a vector of prior probabilities p(k) for each target class 0, ..., K-1.
@@ -627,16 +626,26 @@ def prior_log_proba_x_given_k(
     X:
         a 2d array (n, m) of observations to pass to `clf.predict_log_proba()`
 
+    evidence_clf:
+        a fitted sklearn-compatible density whose `predict_log_proba(x)` method
+        gives the background probability density p(x) of the observation x
+        (independent of class k). If the evidence_clf giving p(x) is not passed,
+        we treat it as constant and equal to 1 (e.g. if renormalization will
+        happen anyway). Therefore we compute log p(x | k) up to an additive
+        constant.
+
     Returns
     -------
     Returns a matrix with K columns, one for each of the classes k \in {1, ..., K}.
     """
-    # output = prior_clf.predict_proba(X) * np.reshape(evidence_clf.predict_proba(X), (-1, 1)) / prior_class_probs
-    output = (
-        prior_clf.predict_log_proba(X)
-        + np.reshape(evidence_clf.predict_log_proba(X), (-1, 1))
-        - np.log(prior_class_probs)
-    )
+    if evidence_clf is None:
+        output = prior_clf.predict_log_proba(X) - np.log(prior_class_probs)
+    else:
+        output = (
+            prior_clf.predict_log_proba(X)
+            + np.reshape(evidence_clf.predict_log_proba(X), (-1, 1))
+            - np.log(prior_class_probs)
+        )
     return output
 
 

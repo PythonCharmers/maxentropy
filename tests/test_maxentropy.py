@@ -382,27 +382,29 @@ def test_current_api_fixme():
     print(f"Log likelihood of original model: {model.predict_log_proba(X_cancer)}")
 
 
-@pytest.mark.xfail(reason="need to figure out this test!")
-def test_ideal_api():
-    from sklearn.datasets import load_breast_cancer
-
-    cancer = load_breast_cancer(as_frame=True)
-    df_cancer = cancer["data"]
-    X_cancer = df_cancer.values
-    y_cancer = cancer["target"]
-
-    feature = "mean concavity"
-
-    # We constrain all the values to be non-negative
-    feature_functions = [non_neg] * X_cancer.shape[1]
-
-    model = maxentropy.MinDivergenceDensity(
-        sampler="uniform",
-        matrix_format="ndarray",
-        sampling_stretch_factor=0.1,
-        n_samples=10_000,
-    )
-    model.fit(X_cancer, feature_functions=feature_functions)
+# def test_old_idea_of_an_ideal_api():
+#     from sklearn.datasets import load_breast_cancer
+#
+#     cancer = load_breast_cancer(as_frame=True)
+#     df_cancer = cancer["data"]
+#     X_cancer = df_cancer.values
+#     y_cancer = cancer["target"]
+#
+#     feature = "mean concavity"
+#
+#     # We constrain all the values to be non-negative
+#     feature_functions = [non_neg] * X_cancer.shape[1]
+#
+#     # This looks nice, but the API would be a mess with different samplers. It's
+#     # inflexible and messy. Much cleaner to just pass in a single iterator as
+#     # the sampler:
+#     model = maxentropy.MinDivergenceDensity(
+#         sampler="uniform",
+#         matrix_format="ndarray",
+#         sampling_stretch_factor=0.1,
+#         n_samples=10_000,
+#     )
+#     model.fit(X_cancer, feature_functions=feature_functions)
 
 
 def test_classifier():
@@ -433,11 +435,13 @@ def test_classifier():
     y_freq = np.bincount(y_wine)
     y_freq = y_freq / np.sum(y_freq)
 
+    minima = X_wine.min(axis=0) - 10 * X_wine.std(axis=0)
+    maxima = X_wine.max(axis=0) + 10 * X_wine.std(axis=0)
+    sampler = utils.make_uniform_sampler(minima, maxima, n_samples=100_000)
+
     clf = maxentropy.MinDivergenceClassifier(
         feature_functions,
-        auxiliary_sampler="uniform",
-        n_samples=100_000,
-        sampling_bounds_stretch_factor=10.0,  # Extend sampling 10x the original range of the data so we get into negative territory ...
+        auxiliary_sampler=sampler,
         prior_clf=net,
         prior_class_probs=y_freq,
         # prior_log_proba_fn=lambda xs: forward_pass_centered(net, slice(None), xs),

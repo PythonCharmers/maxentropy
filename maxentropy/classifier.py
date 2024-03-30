@@ -110,8 +110,13 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
             if self.prior_clf is None:
                 prior_log_pdfs[target_class] = None
             else:
-                prior_log_pdfs[target_class] = prior_log_proba_x_given_k(
-                    self.prior_clf, self.prior_class_probs, target_class
+                prior_log_pdfs[target_class] = lambda X: (
+                    prior_log_proba_x_given_k(
+                        self.prior_clf,
+                        self.prior_class_probs,
+                        X,
+                        evidence_clf=None,
+                    )[:, target_class]
                 )
 
             self.models[target_class] = MinDivergenceDensity(
@@ -225,11 +230,15 @@ class D2GClassifier(ClassifierMixin):
 
     normalizing so sum_k p(k | x) = 1 across the K classes k=1,..K for all
     observations x.
+
+    We expect posterior_log_pdf to return a N x K matrix of log probabilities
+    log p(x | k), with one column for each of the classes k=1, ..., K.
     """
 
     def __init__(
         self,
-        posterior_density: DensityMixin,
+        # Maybe one day we'll have this instead: posterior_density: DensityMixin
+        posterior_log_pdf: Callable,
         prior_class_probs=None,
         *,
         vectorized=True,
@@ -239,7 +248,7 @@ class D2GClassifier(ClassifierMixin):
         warm_start=False,
         verbose=0,
     ):
-        self.posterior_density = posterior_density
+        self.posterior_log_pdf = posterior_log_pdf
         self.prior_class_probs = prior_class_probs
         self.vectorized = vectorized
         self.matrix_format = matrix_format
@@ -285,7 +294,7 @@ class D2GClassifier(ClassifierMixin):
         models.
         """
         # Check if fit has been called
-        check_is_fitted(self.posterior_density)
+        # check_is_fitted(self.posterior_density)
 
         # Input validation
         X = check_array(X)
@@ -307,7 +316,8 @@ class D2GClassifier(ClassifierMixin):
         """
 
         # Calculate the pdf values p(x | k) under each component model (density) k.
-        log_p_x_given_k = self.posterior_density.score_samples(X)
+        # log_p_x_given_k = self.posterior_density.score_samples(X)
+        log_p_x_given_k = self.posterior_log_pdf(X)
 
         unnormalized_log_proba = log_p_x_given_k + np.log(self.prior_class_probs)
         log_const = logsumexp(unnormalized_log_proba, axis=1)
