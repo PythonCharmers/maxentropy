@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "maxentropy"
-version = "0.4.0"
+version = "0.5.0"
 description = "Maximum entropy and minimum divergence models in Python"
 authors = ["Ed Schofield <ed@pythoncharmers.com>"]
 license = "BSD"
