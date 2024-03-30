@@ -649,6 +649,21 @@ def prior_log_proba_x_given_k(
     return output
 
 
+@tz.curry
+def combine_posterior_densities(posterior_densities: list[DensityMixin], X: np.ndarray):
+    """
+    Pass a list of class-specific posterior densities p(x | k)
+    for classes k=0, 1, ..., K.
+
+    Returns a predict_log_proba(X) function that returns a N x K matrix
+    of log probabilities for classes k=1, ..., K.
+    """
+    values = np.vstack(
+        [posterior.predict_log_proba(X) for posterior in posterior_densities]
+    ).T
+    return values
+
+
 def _test():
     import doctest
 

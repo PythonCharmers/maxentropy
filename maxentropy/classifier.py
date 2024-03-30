@@ -4,6 +4,7 @@ constraints.
 """
 
 from collections.abc import Callable, Iterator, Sequence
+from functools import partial
 
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin
@@ -224,11 +225,12 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
 
 class D2GClassifier(ClassifierMixin):
     """
-    Construct a classifier from a fitted density p(x | k) using the Bayes decision rule:
+    Construct a classifier from a fitted density p(x | k) using the Bayes
+    decision rule:
 
         p(k | x) \propto p(x | k) p(k)
 
-    normalizing so sum_k p(k | x) = 1 across the K classes k=1,..K for all
+    normalizing so sum_k p(k | x) = 1 across the K classes k=1, ..., K for all
     observations x.
 
     We expect posterior_log_pdf to return a N x K matrix of log probabilities
@@ -333,7 +335,10 @@ class D2GClassifier(ClassifierMixin):
 
     def predict(self, X):
         log_proba = self.predict_log_proba(X)
-        predictions = self.classes_[np.argmax(log_proba, axis=1)]
+        # predictions = self.classes_[np.argmax(log_proba, axis=1)]
+        # TODO: generalize this to allow classes other than 0, 1, ..., K-1.
+        # (We currently assume classes are numbered contiguously, starting at 0.)
+        predictions = np.argmax(log_proba, axis=1)
         return predictions
 
 
