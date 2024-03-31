@@ -4,10 +4,9 @@ constraints.
 """
 
 from collections.abc import Callable, Iterator, Sequence
-from functools import partial
 
 import numpy as np
-from sklearn.base import BaseEstimator, ClassifierMixin, DensityMixin
+from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import (
     check_X_y,
     check_array,

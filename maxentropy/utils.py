@@ -4,6 +4,8 @@ Utility routines for the maxentropy package.
 License: BSD-style (see LICENSE.md in main source directory)
 """
 
+from __future__ import annotations
+
 from collections.abc import Callable, Generator, Iterator
 
 import numpy as np

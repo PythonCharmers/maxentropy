@@ -3,11 +3,11 @@ from abc import ABCMeta, abstractmethod
 from collections.abc import Iterator
 import types
 
-import six
+from sklearn.base import BaseEstimator, DensityMixin
 import numpy as np
 from scipy import optimize
 from scipy.linalg import norm
-from sklearn.utils import check_array
+from sklearn.utils.validation import check_is_fitted, check_array
 
 from maxentropy.utils import (
     DivergenceError,
@@ -15,7 +15,7 @@ from maxentropy.utils import (
 )
 
 
-class BaseMinDivergenceDensity(six.with_metaclass(ABCMeta)):
+class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
     """A base class providing generic functionality for Minimum KL divergence
     models using either exact summation or sampling. Cannot be instantiated.
 
@@ -258,7 +258,6 @@ class BaseMinDivergenceDensity(six.with_metaclass(ABCMeta)):
 
         # Custom attribute to track if the estimator is fitted
         self._is_fitted = True
-
         return self
 
     def fit(self, X, y=None):
@@ -357,7 +356,7 @@ class BaseMinDivergenceDensity(six.with_metaclass(ABCMeta)):
         # This adds the penalty term \sum_{i=1}^m \params_i^2 / {2 \sigma_i^2}.
         # Define 0 / 0 = 0 here; this allows a variance term of
         # sigma_i^2==0 to indicate that feature i should be ignored.
-        if self.sigma2 is not None and ignorepenalty == False:
+        if self.sigma2 is not None and not ignorepenalty:
             ratios = np.nan_to_num(self.params**2 / self.sigma2)
             # Why does the above convert inf to 1.79769e+308?
 
@@ -457,7 +456,7 @@ class BaseMinDivergenceDensity(six.with_metaclass(ABCMeta)):
         # partial derivative of the penalty term is \params_i /
         # \sigma_i^2.  Define 0 / 0 = 0 here; this allows a variance term
         # of sigma_i^2==0 to indicate that feature i should be ignored.
-        if self.sigma2 is not None and ignorepenalty == False:
+        if self.sigma2 is not None and not ignorepenalty:
             penalty = self.params / self.sigma2
             G += penalty
             features_to_kill = np.where(np.isnan(penalty))[0]
@@ -527,6 +526,12 @@ class BaseMinDivergenceDensity(six.with_metaclass(ABCMeta)):
         divergence D(p||p0) instead of maximum entropy.
 
         """
+        # Check if fit has been called
+        check_is_fitted(self)
+
+        # Input validation
+        X = check_array(X)
+
         # if not hasattr(self, "logZ"):
         #     # Compute the norm constant (quickly!)
         #     self.logZ = logsumexp(log_p_dot)

@@ -3,7 +3,7 @@ from collections.abc import Callable, Iterator, Sequence
 
 import numpy as np
 from sklearn.base import BaseEstimator, DensityMixin
-from sklearn.utils.validation import check_X_y
+from sklearn.utils.validation import check_X_y, check_is_fitted, check_array
 from sklearn.utils.multiclass import check_classification_targets
 from scipy.special import logsumexp
 
@@ -15,9 +15,7 @@ from maxentropy.utils import (
 from maxentropy.base import BaseMinDivergenceDensity
 
 
-class DiscreteMinDivergenceDensity(
-    BaseEstimator, DensityMixin, BaseMinDivergenceDensity
-):
+class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
     """
     A discrete probability distribution induced by moment constraints.
 
@@ -362,7 +360,7 @@ class DiscreteMinDivergenceDensity(
             show_x_and_px_values(n - max_output_lines // 2, n)
 
 
-class MinDivergenceDensity(BaseEstimator, DensityMixin, BaseMinDivergenceDensity):
+class MinDivergenceDensity(BaseMinDivergenceDensity):
     """
     A minimum KL-divergence / maximum-entropy (exponential-form) model
     on a continuous or large discrete sample space requiring Monte Carlo
@@ -907,7 +905,7 @@ class MinDivergenceDensity(BaseEstimator, DensityMixin, BaseMinDivergenceDensity
             if self.verbose >= 2:
                 print("(testing with sample %d)" % e)
             dualapprox.append(self.dual(ignorepenalty=True, ignoretest=True))
-            gradnorms.append(norm(self.grad(ignorepenalty=True)))
+            gradnorms.append(np.linalg.norm(self.grad(ignorepenalty=True)))
 
         # Reset to using the normal sample matrix sample_F
         self.external = None
@@ -937,7 +935,7 @@ class MinDivergenceDensity(BaseEstimator, DensityMixin, BaseMinDivergenceDensity
                 print("\n\t\t\tStored new minimum entropy dual: %f\n" % meandual)
 
 
-class D2GDensity(BaseEstimator, DensityMixin):
+class D2GDensity(DensityMixin, BaseEstimator):
     """
     A "discriminative to generative" density model p(x | k) induced from a
     discriminative classifier and feature constraints.
@@ -952,12 +950,12 @@ class D2GDensity(BaseEstimator, DensityMixin):
 
     Parameters
     ----------
-        prior_clf: sklearn classifier
+        discriminative_clf: sklearn classifier
             This must have a method `.predict_log_proba()` that takes an (n, m)
             array X and returns a matrix of log class probabilities
                 [log p(k | X)]
             of shape (n, k), where k is the number of classes, giving log p(k |
-            X). The probabilities must sum to 1 across each row.
+            X). The probabilities are expected to sum to 1 across each row.
 
             This will be evaluated on the samples produced by
             `auxiliary_sampler` and the outputs will be extracted as column d
@@ -987,13 +985,6 @@ class D2GDensity(BaseEstimator, DensityMixin):
         self.warm_start = warm_start
         self.verbose = verbose
 
-    # def _validate_and_setup(self):
-    #     """
-    #     Various checks and setup stuff
-    #     """
-    #     self.prior_class_probs = column_or_1d(self.prior_class_probs)
-
-    # @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y):
         """
         Fit the background "evidence" model p(x) with maximal entropy subject
@@ -1055,6 +1046,11 @@ class D2GDensity(BaseEstimator, DensityMixin):
         Output: ndarray of shape (N, K), with one column for each of the target
         classes k.
         """
+        # Check if fit has been called
+        check_is_fitted(self)
+
+        # Input validation
+        X = check_array(X)
 
         log_p_x_given_k = prior_log_proba_x_given_k(
             self.discriminative_clf,
@@ -1084,216 +1080,146 @@ class D2GDensity(BaseEstimator, DensityMixin):
         return hasattr(self, "_is_fitted") and self._is_fitted
 
 
-# class MinDivergenceFamily:
-#     """
-#     A generalization of MinDivergenceDensity that represents an ensemble or
-#     family of conditional densities p(x | k) for different classes k=1,...,K.
-#
-#     These share a common d-dimensional sample space x \in X = R^d and a common
-#     sampler and feature sampler. But for each k there is a separate parameter
-#     vector \theta_1,...,\theta_m, fitted separately with constraints E f_i(X) =
-#     \mu_i on the same feature functions f_i but with different empirical sample
-#     means \mu_i.
-#     """
-#
-#     def __init__(
-#         self,
-#         feature_functions: Sequence[Callable],
-#         auxiliary_sampler: Iterator,
-#         prior_conditional_clf=None,
-#         *,
-#         prior_class_probs=None,
-#         vectorized=True,
-#         matrix_format="csc_matrix",
-#         algorithm="CG",
-#         max_iter=1000,
-#         warm_start=False,
-#         verbose=0,
-#     ):
-#         self.feature_functions = feature_functions
-#         self.auxiliary_sampler = auxiliary_sampler
-#         self.prior_conditional_clf = prior_conditional_clf
-#         self.prior_class_probs = prior_class_probs
-#         self.vectorized = vectorized
-#         self.matrix_format = matrix_format
-#         self.algorithm = algorithm
-#         self.max_iter = max_iter
-#         self.warm_start = warm_start
-#         self.verbose = verbose
-#
-#     def _validate_and_setup(self):
-#         """
-#         Various checks and setup stuff
-#         """
-#         self.prior_class_probs = column_or_1d(self.prior_class_probs)
-#
-#     # @_fit_context(prefer_skip_nested_validation=True)
-#     def fit(self, X, y, sample_weight=None):
-#         """Fit the baseline classifier.
-#
-#         Parameters
-#         ----------
-#         X : array-like of shape (n_samples, n_features)
-#             Training data.
-#
-#         y : array-like of shape (n_samples,) or (n_samples, n_outputs)
-#             Target values.
-#
-#         sample_weight : array-like of shape (n_samples,), default=None
-#             Sample weights.
-#
-#         Returns
-#         -------
-#         self : object
-#             Returns the instance itself.
-#         """
-#         X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
-#         y = self._validate_data(y=y)
-#         X, y = check_X_y(X, y)
-#
-#         check_classification_targets(y)
-#
-#         # Handle non-contiguous output labels y:
-#         self.classes_, y = np.unique(y, return_inverse=True)
-#
-#         self._validate_and_setup()
-#
-#         if not self.warm_start:
-#             self.models = {}
-#
-#         prior_log_pdfs = {}
-#
-#         for target_class in range(len(self.classes_)):
-#
-#             if self.prior_clf is None:
-#                 prior_log_pdfs[target_class] = None
-#             else:
-#                 prior_log_pdfs[target_class] = prior_log_proba_x_given_k(
-#                     self.prior_clf, self.prior_class_probs, target_class
-#                 )
-#
-#             self.models[target_class] = MinDivergenceDensity(
-#                 self.feature_functions,
-#                 self.auxiliary_sampler,
-#                 prior_log_pdf=prior_log_pdfs[target_class],
-#                 vectorized=self.vectorized,
-#                 matrix_format=self.matrix_format,
-#                 algorithm=self.algorithm,
-#                 max_iter=self.max_iter,
-#                 warm_start=self.warm_start,
-#                 verbose=self.verbose,
-#             )
-#
-#         for target_class, model in self.models.items():
-#             # Filter the rows of X to those whose corresponding y matches the target class:
-#             X_subset = X[y == target_class]
-#             # F = evaluate_feature_matrix(
-#             #     model.feature_functions, X_subset, matrix_format=self.matrix_format
-#             # )
-#             if self.verbose:
-#                 print(f"Fitting model for target {target_class}")
-#             model.fit(X_subset)
-#
-#         # Custom attribute to track if the estimator is fitted
-#         self._is_fitted = True
-#         return self
-#
-#     def __init__(
-#         self,
-#         feature_functions,
-#         auxiliary_sampler,
-#         prior_conditional_log_pdf=None,
-#         *,
-#         vectorized=True,
-#         matrix_format="csc_matrix",
-#         warm_start=False,
-#         algorithm="CG",
-#         max_iter=1000,
-#         verbose=0,
-#     ):
-#         super().__init__(
-#             feature_functions=feature_functions,
-#             prior_log_pdf=prior_log_pdf,
-#             vectorized=vectorized,
-#             matrix_format=matrix_format,
-#             warm_start=warm_start,
-#             algorithm=algorithm,
-#             max_iter=max_iter,
-#             verbose=verbose,
-#         )
-#         self.auxiliary_sampler = auxiliary_sampler
-#
-#     def fit(self, X, y, sample_weight=None):
-#         """Fit the density p(x | k) for each class k.
-#
-#         The discrete target values y are used to partition the
-#
-#         Parameters
-#         ----------
-#         X : array-like of shape (n_samples, n_features)
-#             Training data.
-#
-#         y : array-like of shape (n_samples,) or (n_samples, n_outputs)
-#             Target values.
-#
-#         sample_weight : array-like of shape (n_samples,), default=None
-#             Sample weights.
-#
-#         Returns
-#         -------
-#         self : object
-#             Returns the instance itself.
-#         """
-#         X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
-#         y = self._validate_data(y=y)
-#         X, y = check_X_y(X, y)
-#
-#         check_classification_targets(y)
-#
-#         # Handle non-contiguous output labels y:
-#         self.classes_, y = np.unique(y, return_inverse=True)
-#
-#         self._validate_and_setup()
-#
-#         if not self.warm_start:
-#             self.models = {}
-#
-#         prior_log_pdfs = {}
-#
-#         for target_class in range(len(self.classes_)):
-#
-#             if self.prior_clf is None:
-#                 prior_log_pdfs[target_class] = None
-#             else:
-#                 prior_log_pdfs[target_class] = prior_log_proba_x_given_k(
-#                     self.prior_clf, self.prior_class_probs, target_class
-#                 )
-#
-#             self.models[target_class] = MinDivergenceDensity(
-#                 self.feature_functions,
-#                 self.auxiliary_sampler,
-#                 prior_log_pdf=prior_log_pdfs[target_class],
-#                 vectorized=self.vectorized,
-#                 matrix_format=self.matrix_format,
-#                 algorithm=self.algorithm,
-#                 max_iter=self.max_iter,
-#                 warm_start=self.warm_start,
-#                 verbose=self.verbose,
-#             )
-#
-#         for target_class, model in self.models.items():
-#             # Filter the rows of X to those whose corresponding y matches the target class:
-#             X_subset = X[y == target_class]
-#             # F = evaluate_feature_matrix(
-#             #     model.feature_functions, X_subset, matrix_format=self.matrix_format
-#             # )
-#             if self.verbose:
-#                 print(f"Fitting model for target {target_class}")
-#             model.fit(X_subset)
-#
-#         # Custom attribute to track if the estimator is fitted
-#         self._is_fitted = True
-#         return self
+class MinDivergenceFamily(DensityMixin, BaseEstimator):
+    """
+    An ensemble or family of conditional densities p(x | k) for different
+    classes k=1,...,K.
+
+    These share a common d-dimensional sample space x \in X = R^d and a common
+    sampler and feature sampler. But for each k there is a separate parameter
+    vector \theta_1,...,\theta_m, fitted separately with constraints E f_i(X) =
+    \mu_i on the same feature functions f_i but with different empirical sample
+    means \mu_i.
+
+    Parameters
+    ----------
+        prior_log_pdf:
+            pass this as a function that returns an N x K matrix log p(x | k)
+            with one column for each of the classes k=1,...,.K.
+
+    """
+
+    def __init__(
+        self,
+        feature_functions: Sequence[Callable],
+        auxiliary_sampler: Iterator,
+        prior_log_pdf=None,
+        *,
+        vectorized=True,
+        matrix_format="csc_matrix",
+        algorithm="CG",
+        max_iter=1000,
+        warm_start=False,
+        verbose=0,
+    ):
+        self.feature_functions = feature_functions
+        self.auxiliary_sampler = auxiliary_sampler
+        self.prior_log_pdf = prior_log_pdf
+        self.vectorized = vectorized
+        self.matrix_format = matrix_format
+        self.algorithm = algorithm
+        self.max_iter = max_iter
+        self.warm_start = warm_start
+        self.verbose = verbose
+
+    def fit(self, X, y, sample_weight=None):
+        """Fit the baseline classifier.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training data.
+
+        y : array-like of shape (n_samples,) or (n_samples, n_outputs)
+            Target values.
+
+        sample_weight : array-like of shape (n_samples,), default=None
+            Sample weights.
+
+        Returns
+        -------
+        self : object
+            Returns the instance itself.
+        """
+        X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
+        y = self._validate_data(y=y)
+        X, y = check_X_y(X, y)
+
+        check_classification_targets(y)
+
+        # Handle non-contiguous output labels y:
+        self.classes_, y = np.unique(y, return_inverse=True)
+
+        if not self.warm_start:
+            self.models = (
+                []
+            )  # the index into the list is the class number k = 0, ..., K-1.
+
+        self.prior_log_pdfs = {}
+
+        for target_class in range(len(self.classes_)):
+
+            if self.prior_log_pdf is None:
+                self.prior_log_pdfs[target_class] = None
+            else:
+                self.prior_log_pdfs[target_class] = lambda X: self.prior_log_pdf(X)[
+                    :, target_class
+                ]
+
+            # Conditional model p(x | k) for class k:
+            model = MinDivergenceDensity(
+                self.feature_functions,
+                self.auxiliary_sampler,
+                prior_log_pdf=self.prior_log_pdfs[target_class],
+                vectorized=self.vectorized,
+                matrix_format=self.matrix_format,
+                algorithm=self.algorithm,
+                max_iter=self.max_iter,
+                warm_start=self.warm_start,
+                verbose=self.verbose,
+            )
+            self.models.append(model)
+
+        for target_class, model in enumerate(self.models):
+            # Filter the rows of X to those whose corresponding y matches the target class:
+            X_subset = X[y == target_class]
+            if self.verbose:
+                print(f"Fitting model for target {target_class}")
+            model.fit(X_subset)
+
+        # Custom attribute to track if the estimator is fitted
+        self._is_fitted = True
+        return self
+
+    def predict_log_proba(self, X: np.ndarray) -> np.ndarray:
+        """
+        Returns
+        -------
+        An N x K matrix of log probabilities p(x | k), with one column for each target class k.
+        """
+
+        # Check if fit has been called
+        check_is_fitted(self)
+
+        # Input validation
+        X = check_array(X)
+
+        log_proba = np.vstack(
+            [posterior.predict_log_proba(X) for posterior in self.models]
+        ).T
+        return log_proba
+
+    def predict_proba(self, X):
+        """
+        The probability of the true model being for each target class of
+        those fitted.
+        """
+        return np.exp(self.predict_log_proba(X))
 
 
-__all__ = ["DiscreteMinDivergenceDensity", "MinDivergenceDensity", "D2GDensity"]
+__all__ = [
+    "DiscreteMinDivergenceDensity",
+    "MinDivergenceDensity",
+    "D2GDensity",
+    "MinDivergenceFamily",
+]

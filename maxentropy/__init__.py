@@ -87,7 +87,12 @@ import re
 
 from .base import BaseMinDivergenceDensity
 from .utils import FeatureTransformer
-from .density import DiscreteMinDivergenceDensity, MinDivergenceDensity, D2GDensity
+from .density import (
+    DiscreteMinDivergenceDensity,
+    MinDivergenceDensity,
+    D2GDensity,
+    MinDivergenceFamily,
+)
 from .classifier import MinDivergenceClassifier, D2GClassifier
 
 
@@ -99,11 +104,11 @@ warnings.filterwarnings(
 
 __all__ = [
     "BaseMinDivergenceDensity",
-    "utils",
     "FeatureTransformer",
     "DiscreteMinDivergenceDensity",
     "MinDivergenceDensity",
     "D2GDensity",
+    "MinDivergenceFamily",
     "D2GClassifier",
     "MinDivergenceClassifier",
 ]
