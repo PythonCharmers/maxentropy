@@ -590,67 +590,6 @@ def make_uniform_sampler(minima, maxima, n_samples=100_000) -> Generator:
     return sampler
 
 
-def prior_log_proba_x_given_k(
-    prior_clf: ClassifierMixin,
-    prior_class_probs: np.ndarray,
-    X: np.ndarray,
-    *,
-    evidence_clf: Optional[DensityMixin] = None,
-):
-    """
-    This calculates the log of p(X | k = target_class) given a classifier `clf`
-    up to an additive constant (independent of k).
-
-    Since:
-
-        p(X | k) = p(k | x) * p(x) / p(k)
-
-    we have:
-
-        log p(X | k) = log p(k | X) - log p(k) + p(x)
-
-
-    Parameters
-    ----------
-    prior_clf:
-        a fitted sklearn-compatible classifier with a `predict_log_proba()` method
-
-    prior_class_probs:
-        a vector of prior probabilities p(k) for each target class 0, ..., K-1.
-        One way to estimate this is:
-
-            np.bincount(y_train) / np.bincount(y_train).sum()
-
-        Another is:
-
-            pd.Series(y_train).value_counts(normalize=True).sort_index()
-
-    X:
-        a 2d array (n, m) of observations to pass to `clf.predict_log_proba()`
-
-    evidence_clf:
-        a fitted sklearn-compatible density whose `predict_log_proba(x)` method
-        gives the background probability density p(x) of the observation x
-        (independent of class k). If the evidence_clf giving p(x) is not passed,
-        we treat it as constant and equal to 1 (e.g. if renormalization will
-        happen anyway). Therefore we compute log p(x | k) up to an additive
-        constant.
-
-    Returns
-    -------
-    Returns a matrix with K columns, one for each of the classes k \in {1, ..., K}.
-    """
-    if evidence_clf is None:
-        output = prior_clf.predict_log_proba(X) - np.log(prior_class_probs)
-    else:
-        output = (
-            prior_clf.predict_log_proba(X)
-            + np.reshape(evidence_clf.predict_log_proba(X), (-1, 1))
-            - np.log(prior_class_probs)
-        )
-    return output
-
-
 @tz.curry
 def combine_posterior_densities(posterior_densities: list[DensityMixin], X: np.ndarray):
     """
@@ -664,6 +603,34 @@ def combine_posterior_densities(posterior_densities: list[DensityMixin], X: np.n
         [posterior.predict_log_proba(X) for posterior in posterior_densities]
     ).T
     return values
+
+
+@tz.curry
+def evaluate_fn_and_extract_column(fn, k, X):
+    """
+    A curried function to evaluate fn(X)[:, k].
+
+    Calling `evaluate_fn_and_extract_column(fn, k)` returns a partial function
+    that expects X and returns the kth column of the result.
+
+    Use this to prevent NASTY bugs that arise when creating lambdas in a for loop
+    that depend on the loop variable.
+
+    Example of the bug:
+
+        >>> functions = [lambda x: k * x for k in range(10)]   # WRONG!
+        >>> functions[0](5)
+        45
+
+    What to do instead:
+        >>> @tz.curry
+        >>> def mul(k, x):
+        ...     return k * x
+        >>> functions = [mul(k) for k in range(10)]
+        >>> functions[0](5)
+        0
+    """
+    return fn(X)[:, k]
 
 
 def _test():

@@ -10,7 +10,7 @@ from scipy.special import logsumexp
 from maxentropy.utils import (
     evaluate_feature_matrix,
     feature_sampler,
-    prior_log_proba_x_given_k,
+    evaluate_fn_and_extract_column,
 )
 from maxentropy.base import BaseMinDivergenceDensity
 
@@ -940,13 +940,25 @@ class D2GDensity(DensityMixin, BaseEstimator):
     A "discriminative to generative" density model p(x | k) induced from a
     discriminative classifier and feature constraints.
 
-    Requires:
+    Requires
+    --------
         - a fitted discriminative classifier whose predict_log_proba() method
           predicts the (log) probability p(k | x) of each class k given an
           observation x;
         - feature functions f_i(X) whose expectations to constrain as E f_i(X) = b_i
         - a training dataset X from which we count the empirical frequencies b
           and frequencies of each class.
+
+    Attributes
+    ----------
+
+        evidence_clf:
+            a fitted sklearn-compatible density whose `predict_log_proba(x)` method
+            gives the background probability density p(x) of the observation x
+            (independent of class k). If the evidence_clf giving p(x) is not passed,
+            we treat it as constant and equal to 1 (e.g. if renormalization will
+            happen anyway). Therefore we compute log p(x | k) up to an additive
+            constant.
 
     Parameters
     ----------
@@ -1043,6 +1055,14 @@ class D2GDensity(DensityMixin, BaseEstimator):
         The log probability of the observation x under this generative model
         p(x | k) for each target class k.
 
+        Since:
+
+            p(X | k) = p(k | x) * p(x) / p(k)
+
+        we have:
+
+            log p(X | k) = log p(k | X) + p(x) - log p(k)
+
         Output: ndarray of shape (N, K), with one column for each of the target
         classes k.
         """
@@ -1052,12 +1072,12 @@ class D2GDensity(DensityMixin, BaseEstimator):
         # Input validation
         X = check_array(X)
 
-        log_p_x_given_k = prior_log_proba_x_given_k(
-            self.discriminative_clf,
-            self.prior_class_probs,
-            X,
-            evidence_clf=self.evidence_model,
+        log_p_x_given_k = (
+            self.discriminative_clf.predict_log_proba(X)
+            + np.reshape(self.evidence_model.predict_log_proba(X), (-1, 1))
+            - np.log(self.prior_class_probs)
         )
+
         return log_p_x_given_k
 
     def predict_proba(self, X):
@@ -1162,9 +1182,14 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
             if self.prior_log_pdf is None:
                 self.prior_log_pdfs[target_class] = None
             else:
-                self.prior_log_pdfs[target_class] = lambda X: self.prior_log_pdf(X)[
-                    :, target_class
-                ]
+                self.prior_log_pdfs[target_class] = evaluate_fn_and_extract_column(
+                    self.prior_log_pdf, target_class
+                )
+
+                ### PREVIOUSLY THERE WAS THIS NASTY BUG:
+                # lambda X: self.prior_log_pdf(X)[:, target_class]
+                # with target_class referring to the state in the outer scope
+                # *after* the loop, not taking on a different value each iteration.
 
             # Conditional model p(x | k) for class k:
             model = MinDivergenceDensity(

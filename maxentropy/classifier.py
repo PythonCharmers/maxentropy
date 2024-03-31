@@ -15,10 +15,8 @@ from sklearn.utils.validation import (
 )
 from sklearn.utils.multiclass import check_classification_targets
 from scipy.special import logsumexp
+import toolz as tz
 
-from maxentropy.utils import (
-    prior_log_proba_x_given_k,
-)
 from maxentropy.density import MinDivergenceDensity
 
 
@@ -103,6 +101,16 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         if not self.warm_start:
             self.models = {}
 
+        @tz.curry
+        def prior_log_proba_x_given_k(
+            prior_clf: ClassifierMixin,
+            prior_class_probs: np.ndarray,
+            target_class,
+            X: np.ndarray,
+        ):
+            outputs = prior_clf.predict_log_proba(X) - np.log(prior_class_probs)
+            return outputs[:, target_class]
+
         prior_log_pdfs = {}
 
         for target_class in range(len(self.classes_)):
@@ -110,13 +118,8 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
             if self.prior_clf is None:
                 prior_log_pdfs[target_class] = None
             else:
-                prior_log_pdfs[target_class] = lambda X: (
-                    prior_log_proba_x_given_k(
-                        self.prior_clf,
-                        self.prior_class_probs,
-                        X,
-                        evidence_clf=None,
-                    )[:, target_class]
+                prior_log_pdfs[target_class] = prior_log_proba_x_given_k(
+                    self.prior_clf, self.prior_class_probs, target_class
                 )
 
             self.models[target_class] = MinDivergenceDensity(
