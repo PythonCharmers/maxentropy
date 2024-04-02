@@ -82,6 +82,16 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
     verbose : int, (default=0)
         Enable verbose output.
 
+    smoothing_factor : float or ndarray or None
+        Set this to a positive scalar or vector value (of the same length as the
+        parameter vector) for Gaussian regularization / smoothing on the
+        parameters. Penalizes parameter values far from zero. Smoothing is as
+        described in:
+
+           Chen, Stanley F. and Rosenfeld, Ronald A Gaussian prior for smoothing
+           maximum entropy models. (CMU-CS-99-108), Carnegie Mellon University
+           (1999).
+
     """
 
     def __init__(
@@ -98,6 +108,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         max_iter=1000,
         warm_start=False,
         verbose=0,
+        smoothing_factor=None,
     ):
         self.feature_functions = feature_functions
         self.prior_log_pdf = prior_log_pdf
@@ -115,6 +126,10 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
 
         # Default tolerance for the other optimization algorithms:
         self.tol = tol
+
+        # Variances for a Gaussian prior on the parameters for smoothing.
+        # Penalizes parameter values far from zero:
+        self.smoothing_factor = smoothing_factor
 
     def _validate_and_setup(self):
         self.resetparams()
@@ -166,9 +181,6 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         # optimization algorithm
         self.fnevals = 0
         self.gradevals = 0
-
-        # Variances for a Gaussian prior on the parameters for smoothing
-        self.sigma2 = None
 
         # Store the duals for each fn evaluation during fitting?
         self.storeduals = False
@@ -356,8 +368,8 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         # This adds the penalty term \sum_{i=1}^m \params_i^2 / {2 \sigma_i^2}.
         # Define 0 / 0 = 0 here; this allows a variance term of
         # sigma_i^2==0 to indicate that feature i should be ignored.
-        if self.sigma2 is not None and not ignorepenalty:
-            ratios = np.nan_to_num(self.params**2 / self.sigma2)
+        if self.smoothing_factor is not None and not ignorepenalty:
+            ratios = np.nan_to_num(self.params**2 / self.smoothing_factor)
             # Why does the above convert inf to 1.79769e+308?
 
             L += 0.5 * ratios.sum()
@@ -456,8 +468,8 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         # partial derivative of the penalty term is \params_i /
         # \sigma_i^2.  Define 0 / 0 = 0 here; this allows a variance term
         # of sigma_i^2==0 to indicate that feature i should be ignored.
-        if self.sigma2 is not None and not ignorepenalty:
-            penalty = self.params / self.sigma2
+        if self.smoothing_factor is not None and not ignorepenalty:
+            penalty = self.params / self.smoothing_factor
             G += penalty
             features_to_kill = np.where(np.isnan(penalty))[0]
             G[features_to_kill] = 0.0
@@ -586,9 +598,10 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         Rosenfeld, 'A Gaussian prior for smoothing maximum entropy
         models' (1999).
 
-        The parameter 'sigma' will be squared and stored as self.sigma2.
+        The parameter 'sigma' will be squared and stored as
+        self.smoothing_factor.
         """
-        self.sigma2 = sigma**2
+        self.smoothing_factor = sigma**2
 
     def setparams(self, params):
         """Set the parameter vector to params, replacing the existing

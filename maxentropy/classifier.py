@@ -49,6 +49,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         max_iter=1000,
         warm_start=False,
         verbose=0,
+        smoothing_factor=None,
     ):
         self.feature_functions = feature_functions
         self.auxiliary_sampler = auxiliary_sampler
@@ -60,6 +61,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         self.max_iter = max_iter
         self.warm_start = warm_start
         self.verbose = verbose
+        self.smoothing_factor = smoothing_factor
 
     def _validate_and_setup(self):
         """
@@ -132,6 +134,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
                 max_iter=self.max_iter,
                 warm_start=self.warm_start,
                 verbose=self.verbose,
+                smoothing_factor=self.smoothing_factor,
             )
 
         for target_class, model in self.models.items():
@@ -225,7 +228,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         return hasattr(self, "_is_fitted") and self._is_fitted
 
 
-class D2GClassifier(ClassifierMixin):
+class D2GClassifier(ClassifierMixin, BaseEstimator):
     """
     Construct a classifier from a fitted density p(x | k) using the Bayes
     decision rule:
@@ -251,6 +254,7 @@ class D2GClassifier(ClassifierMixin):
         max_iter=1000,
         warm_start=False,
         verbose=0,
+        smoothing_factor=None,
     ):
         self.posterior_log_pdf = posterior_log_pdf
         self.prior_class_probs = prior_class_probs
@@ -260,6 +264,7 @@ class D2GClassifier(ClassifierMixin):
         self.max_iter = max_iter
         self.warm_start = warm_start
         self.verbose = verbose
+        self.smoothing_factor = smoothing_factor
 
     def fit(self, X, y, sample_weight=None):
         """

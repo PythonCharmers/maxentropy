@@ -137,6 +137,7 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
         max_iter=1000,
         verbose=0,
         warm_start=False,
+        smoothing_factor=None,
     ):
         super().__init__(
             feature_functions,
@@ -147,6 +148,7 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
             max_iter=max_iter,
             verbose=verbose,
             warm_start=warm_start,
+            smoothing_factor=smoothing_factor,
         )
 
         self.samplespace = samplespace
@@ -463,6 +465,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         algorithm="CG",
         max_iter=1000,
         verbose=0,
+        smoothing_factor=None,
     ):
         super().__init__(
             feature_functions=feature_functions,
@@ -473,6 +476,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             algorithm=algorithm,
             max_iter=max_iter,
             verbose=verbose,
+            smoothing_factor=smoothing_factor,
         )
         self.auxiliary_sampler = auxiliary_sampler
 
@@ -986,6 +990,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
         max_iter=1000,
         warm_start=False,
         verbose=0,
+        smoothing_factor=None,
     ):
         self.discriminative_clf = discriminative_clf
         self.feature_functions = feature_functions
@@ -996,6 +1001,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
         self.max_iter = max_iter
         self.warm_start = warm_start
         self.verbose = verbose
+        self.smoothing_factor = smoothing_factor
 
     def fit(self, X, y):
         """
@@ -1041,6 +1047,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
             algorithm=self.algorithm,
             max_iter=self.max_iter,
             verbose=self.verbose,
+            smoothing_factor=self.smoothing_factor,
         )
         self.evidence_model.fit(
             X, y
@@ -1131,6 +1138,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         max_iter=1000,
         warm_start=False,
         verbose=0,
+        smoothing_factor=None,
     ):
         self.feature_functions = feature_functions
         self.auxiliary_sampler = auxiliary_sampler
@@ -1141,6 +1149,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         self.max_iter = max_iter
         self.warm_start = warm_start
         self.verbose = verbose
+        self.smoothing_factor = smoothing_factor
 
     def fit(self, X, y, sample_weight=None):
         """Fit the baseline classifier.
@@ -1202,6 +1211,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
                 max_iter=self.max_iter,
                 warm_start=self.warm_start,
                 verbose=self.verbose,
+                smoothing_factor=self.smoothing_factor,
             )
             self.models.append(model)
 
