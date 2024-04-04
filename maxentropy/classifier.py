@@ -318,7 +318,7 @@ class D2GClassifier(ClassifierMixin, BaseEstimator):
         \sum_k p(k | x) = 1
 
         So we can calculate const by:
-        const = p(x | k=0) p(k=0) + p(x | k=1) p(k=1)
+        const = p(x | k=0) p(k=0) + p(x | k=1) p(k=1) + ... p(k | k=K) p(k=K)
 
         Finally, we have:
         log p(k | x) = log p(x | k) + log p(k) - log const

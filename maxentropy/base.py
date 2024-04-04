@@ -621,7 +621,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         """Clears the interim results of computations depending on the
         parameters and the sample.
         """
-        for var in ["mu", "logZ", "logZapprox", "logv"]:
+        for var in ["mu", "logZ", "logZapprox", "log_w_dot_"]:
             if hasattr(self, var):
                 delattr(self, var)
 

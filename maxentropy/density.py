@@ -399,9 +399,9 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         to np.vectorize(f_i) or pass vectorized=False, but beware the
         performance overhead.
 
-    auxiliary_sampler : generator
+    auxiliary_sampler : iterator
 
-        Pass auxiliary_sampler as a generator that will be used for importance
+        Pass auxiliary_sampler as an iterator that will be used for importance
         sampling. Calling `next(auxiliary_sampler)` should return a tuple
             (xs, log_q_xs)
         representing:
@@ -580,7 +580,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             # The number of features is defined as the length of # self.params.
             if m != len(self.params):
                 raise ValueError(
-                    "the sample feature generator returned"
+                    "the sample feature iterator returned"
                     " a feature matrix of incorrect dimensions."
                     " The number of rows must equal the number of model parameters."
                 )
@@ -609,14 +609,14 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         if hasattr(self, "logZapprox"):
             return self.logZapprox
 
-        # Compute log v = log [p_dot(s_j)/aux_dist(s_j)]   for
+        # Compute log w_dot = log [p_dot(s_j)/aux_dist(s_j)]   for
         # j=1,...,n=|sample| using a precomputed matrix of sample
         # features.
-        logv = self._logv()
+        log_w_dot = self._log_w_dot()
 
-        # Good, we have our logv.  Now:
-        n = len(logv)
-        self.logZapprox = logsumexp(logv) - math.log(n)
+        # Good, we have our log_w_dot.  Now:
+        n = len(log_w_dot)
+        self.logZapprox = logsumexp(log_w_dot) - math.log(n)
         if np.isnan(self.logZapprox):
             raise ValueError("Oops: logZapprox is nan! Debug me!")
         return self.logZapprox
@@ -638,78 +638,76 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         self.estimate()
         return self.mu
 
-    def _logv(self):
+    def _log_w_dot(self):
         """This function helps with caching of interim computational
         results.  It is designed to be called internally, not by a user.
 
         Returns
         -------
-        logv : 1d ndarray
+        log_w_dot : 1d ndarray
                The array of unnormalized importance sampling weights
                corresponding to the sample x_j whose features are represented
                as the columns of self.sample_F.
 
                Defined as:
 
-                   logv_j = p_dot(x_j) / q(x_j),
+                   log w_dot_j = p_dot(x_j) / q(x_j),
 
                where p_dot(x_j) = p_0(x_j) exp(theta . f(x_j)) is the
                unnormalized pdf value of the point x_j under the current model.
         """
-        # First see whether logv has been precomputed
-        if hasattr(self, "logv"):
-            return self.logv
+        # First see whether log w dot has been precomputed
+        if hasattr(self, "log_w_dot_"):
+            return self.log_w_dot_
 
         # Compute log v = log [p_dot(s_j)/aux_dist(s_j)]   for
         # j=1,...,n=|sample| using a precomputed matrix of sample
         # features.
         if self.external is None:
             paramsdotF = self.sample_F.dot(self.params)
-            logv = paramsdotF - self.sample_log_probs
+            log_w_dot = paramsdotF - self.sample_log_probs
             # Are we minimizing KL divergence between the model and a prior
             # density p_0?
             if self.priorlogprobs is not None:
-                logv += self.priorlogprobs
+                log_w_dot += self.priorlogprobs
         else:
             e = self.external
             paramsdotF = self.external_Fs[e].dot(self.params)
-            logv = paramsdotF - self.external_logprobs[e]
+            log_w_dot = paramsdotF - self.external_logprobs[e]
             # Are we minimizing KL divergence between the model and a prior
             # density p_0?
             if self.external_priorlogprobs is not None:
-                logv += self.external_priorlogprobs[e]
+                log_w_dot += self.external_priorlogprobs[e]
 
-        # Good, we have our logv.  Now:
-        self.logv = logv
-        return logv
+        self.log_w_dot_ = log_w_dot
+        return log_w_dot
 
     def estimate(self):
         """
-        Approximate both the feature expectation vector E_p f(X) and the log
-        of the normalization term Z with importance sampling.
+        Approximate both the feature expectation vector E_p f(X) and the log of
+        the normalization term Z with importance sampling.
 
         This function also computes the sample variance of the component
         estimates of the feature expectations as: varE = var(E_1, ..., E_T)
         where T is self.matrixtrials and E_t is the estimate of E_p f(X)
         approximated using the 't'th auxiliary feature matrix.
 
-        It doesn't return anything, but stores the member variables
-        logZapprox, mu and varE.  (This is done because some optimization
-        algorithms retrieve the dual fn and gradient fn in separate
-        function calls, but we can compute them more efficiently
-        together.)
+        It doesn't return anything, but stores the member variables logZapprox,
+        mu and varE.  (This is done because some optimization algorithms
+        retrieve the dual fn and gradient fn in separate function calls, but we
+        can compute them more efficiently together.)
 
-        It uses a supplied generator whose __next__() method
-        returns features of random observations s_j generated according
-        to an auxiliary distribution aux_dist.  It uses these either in a
-        matrix (with multiple runs) or with a sequential procedure, with
-        more updating overhead but potentially stopping earlier (needing
-        fewer samples).  In the matrix case, the features F={f_i(s_j)}
-        and vector [log_aux_dist(s_j)] of log probabilities are generated
-        by calling resample().
+        It uses an iterator whose __next__() method returns features of random
+        observations s_j generated according to an auxiliary distribution
+        aux_dist.  It uses these either in a matrix (with multiple runs) or with
+        a sequential procedure, with more updating overhead but potentially
+        stopping earlier (needing fewer samples).  In the matrix case, the
+        features F={f_i(s_j)} and vector [log_aux_dist(s_j)] of log
+        probabilities are generated by calling resample().
 
         We use [Rosenfeld01Wholesentence]'s estimate of E_p[f_i] as:
-            {sum_j  p(s_j)/aux_dist(s_j) f_i(s_j) }
+
+            {sum_j  p(s_j) / aux_dist(s_j) f_i(s_j) }
               / {sum_j p(s_j) / aux_dist(s_j)}.
 
         Note that this is consistent but biased.
@@ -749,8 +747,8 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             if (not self.staticsample) or self.matrixtrials > 1:
                 self.resample()
 
-            logv = self._logv()
-            n = len(logv)
+            log_w_dot = self._log_w_dot()
+            n = len(log_w_dot)
             logZ = self.log_norm_constant()
             logZs.append(logZ)
 
@@ -758,11 +756,12 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             # because we don't need to take the log of the feature
             # matrix sample_F. See Ed Schofield's PhD thesis, Section 4.4
 
-            logu = logv - logZ
+            log_w = log_w_dot - logZ
+            w = np.exp(log_w)
             if self.external is None:
-                averages = self.sample_F.T.dot(np.exp(logu))
+                averages = self.sample_F.T.dot(w)
             else:
-                averages = self.external_Fs[self.external].T.dot(np.exp(logu))
+                averages = self.external_Fs[self.external].T.dot(w)
             averages /= n
             mus.append(averages)
 
