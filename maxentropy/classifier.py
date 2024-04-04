@@ -89,7 +89,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         self : object
             Returns the instance itself.
         """
-        X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
+        X = self._validate_data(X, cast_to_ndarray=False, accept_sparse=["csr", "csc"])
         y = self._validate_data(y=y)
         X, y = check_X_y(X, y)
 

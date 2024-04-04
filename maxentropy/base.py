@@ -288,7 +288,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         self
 
         """
-        X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
+        X = self._validate_data(X, cast_to_ndarray=False, accept_sparse=["csr", "csc"])
 
         # We require that auxiliary_sampler be a generator:
         if hasattr(self, "auxiliary_sampler"):

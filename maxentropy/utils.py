@@ -215,6 +215,34 @@ class FeatureTransformer(BaseEstimator, TransformerMixin):
         return F
 
 
+def force_array(matrix):
+    """
+    Takes an array or matrix (either numpy ndarray or scipy.sparse array /
+    matrix) and returns an array (either numpy ndarray or scipy.sparse array).
+
+    Doesn't copy if possible.
+    """
+    usage_error = (
+        "Only ndarray, csr, csc, and dok (array or matrix) are currently accepted."
+    )
+    if scipy.sparse.issparse(matrix):
+        if not scipy.sparse.isspmatrix(matrix):
+            # scipy.sparse array
+            return matrix
+        if isinstance(matrix, scipy.sparse.csr_matrix):
+            return scipy.sparse.csr_array(matrix)
+        elif isinstance(matrix, scipy.sparse.csc_matrix):
+            return scipy.sparse.csc_array(matrix)
+        elif isinstance(matrix, scipy.sparse.dok_matrix):
+            return scipy.sparse.dok_array(matrix)
+        else:
+            raise ValueError(usage_error)
+    else:
+        if not isinstance(matrix, np.ndarray):
+            raise ValueError(usage_error)
+        return np.asarray(matrix)
+
+
 # Previously sampleFgen, with different argument order
 def feature_sampler(
     features: list[Callable],

@@ -11,6 +11,7 @@ from maxentropy.utils import (
     evaluate_feature_matrix,
     feature_sampler,
     evaluate_fn_and_extract_column,
+    force_array,
 )
 from maxentropy.base import BaseMinDivergenceDensity
 
@@ -163,12 +164,20 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
         #     self.F = features
         # else:
 
-        self.F = evaluate_feature_matrix(
-            self.feature_functions,
-            self.samplespace,
-            matrix_format=self.matrix_format,
-            vectorized=self.vectorized,
-            verbose=self.verbose,
+        # Watch out: if self.F is a dense NumPy matrix, its dot product
+        # with a 1d parameter vector comes out as a 2d array, whereas if
+        # self.F is a SciPy sparse matrix or dense NumPy array, its dot
+        # product with the parameters is 1d. So, if it's a matrix, we cast
+        # it to an array.
+
+        self.F = force_array(
+            evaluate_feature_matrix(
+                self.feature_functions,
+                self.samplespace,
+                matrix_format=self.matrix_format,
+                vectorized=self.vectorized,
+                verbose=self.verbose,
+            )
         )
 
         if self.prior_log_pdf is not None:
@@ -329,14 +338,6 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
             raise ValueError(
                 "the feature matrix is zero. Check whether your feature functions are vectorized and, if not, pass vectorized=False"
             )
-
-        # Watch out: if self.F is a dense NumPy matrix, its dot product
-        # with a 1d parameter vector comes out as a 2d array, whereas if
-        # self.F is a SciPy sparse matrix or dense NumPy array, its dot
-        # product with the parameters is 1d. So, if it's a matrix, we cast
-        # it to an array.
-        if isinstance(self.F, np.matrix):
-            self.F = np.asarray(self.F)
 
     def show_dist(self, max_output_lines=20):
         """
@@ -1023,7 +1024,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
         self : object
             Returns the instance itself.
         """
-        X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
+        X = self._validate_data(X, cast_to_ndarray=False, accept_sparse=["csr", "csc"])
         y = self._validate_data(y=y)
         X, y = check_X_y(X, y)
 
@@ -1169,7 +1170,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         self : object
             Returns the instance itself.
         """
-        X = self._validate_data(X, cast_to_ndarray=True, accept_sparse=["csr", "csc"])
+        X = self._validate_data(X, cast_to_ndarray=False, accept_sparse=["csr", "csc"])
         y = self._validate_data(y=y)
         X, y = check_X_y(X, y)
 
