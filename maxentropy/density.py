@@ -464,6 +464,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         max_iter=1000,
         verbose=0,
         smoothing_factor=None,
+        estimate_sampling_stdevs=False,
     ):
         super().__init__(
             feature_functions=feature_functions,
@@ -477,6 +478,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             smoothing_factor=smoothing_factor,
         )
         self.auxiliary_sampler = auxiliary_sampler
+        self.estimate_sampling_stdevs = estimate_sampling_stdevs
 
     def _setup_features(self):
         """
@@ -733,10 +735,18 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         if self.verbose >= 3:
             print("(estimating dual and gradient ...)")
 
-        # Hereafter is the matrix code
+        # Keep track of the terms \sum_{j=1}^n (Y_j - W_j \hat{\mu}_ratio)^2
+        # and divide by [n(n-1)] at the end.
+        if self.estimate_sampling_stdevs:
+            variance_components = []
 
         mus = []
         logZs = []
+        # effective_sample_sizes = []
+
+        # We want to calculate the variance of the ratio importance sampling estimator.
+        # This is defined as the vector (with components i):
+        #    \hat{\sigma}^2_ratio = 1 / [n (n - 1)] \sum_{j=1}^n (Y_j - W_j \hat{\mu}_ratio)^2
 
         for trial in range(self.matrixtrials):
             if self.verbose >= 2 and self.matrixtrials > 1:
@@ -758,40 +768,42 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             log_w = log_w_dot - logZ
             w = np.exp(log_w)
             if self.external is None:
-                averages = self.sample_F.T.dot(w)
+                averages = self.sample_F.T.dot(w) / n
+                if self.estimate_sampling_stdevs:
+                    y = self.sample_F.T * w  # elementwise product
+                    term = y - w * np.reshape(averages, (-1, 1))  # broadcasting
+                    variance_components.append(np.sum(term**2, axis=1))
             else:
-                averages = self.external_Fs[self.external].T.dot(w)
-            averages /= n
+                averages = self.external_Fs[self.external].T.dot(w) / n
+
             mus.append(averages)
 
-        # Now we have T=trials vectors of the sample means.  If trials > 1,
-        # estimate st dev of means and confidence intervals
-        ttrials = len(mus)  # total number of trials performed
-        if ttrials == 1:
+        if self.matrixtrials == 1:
             self.mu = mus[0]
             self.logZapprox = logZs[0]
+            if self.estimate_sampling_stdevs:
+                self.stdevs_ = np.sqrt(1 / (n * (n - 1)) * variance_components[0])
+            else:
+                self.stdevs_ = None
             try:
                 del self.varE  # make explicit that this has no meaning
             except AttributeError:
                 pass
         else:
-            # The log of the variance of logZ is:
-            #     -log(n-1) + logsumexp(2*log|Z_k - meanZ|)
-
-            self.logZapprox = logsumexp(logZs) - math.log(ttrials)
-            # stdevlogZ = np.array(logZs).std()
-            mus = np.array(mus)
+            self.mu = np.mean(mus, axis=0)  # column means
             self.varE = mus.var(axis=0)  # column variances
-            self.mu = mus.mean(axis=0)  # column means
+            self.logZapprox = logsumexp(logZs) - np.log(self.matrixtrials)
+            if self.estimate_sampling_stdevs:
+                self.stdevs_ = np.sqrt(
+                    self.matrixtrials
+                    / (n * (n - 1))
+                    * np.sum(variance_components, axis=0)
+                )
+            else:
+                self.stdevs_ = None
 
-    # def pdf_from_features(self, fx, *, log_prior_x=None):
-    #     """Returns the estimated density p_theta(x) at the point x with
-    #     feature statistic fx = f(x).  This is defined as
-    #         p_theta(x) = exp(theta.f(x)) / Z(theta),
-    #     where Z is the estimated value self.norm_constant() of the partition
-    #     function.
-    #     """
-    #     return np.exp(self.log_pdf_from_features(fx, log_prior_x=log_prior_x))
+        # CHECK: Is this a valid thing to do if matrixtrials > 1?
+        # self.effective_sample_size_ = np.mean(effective_sample_sizes)
 
     def pdf_function(self):
         """Returns the estimated density p_theta(x) as a function p(f)
@@ -989,6 +1001,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
         warm_start=False,
         verbose=0,
         smoothing_factor=None,
+        estimate_sampling_stdevs=False,
     ):
         self.discriminative_clf = discriminative_clf
         self.feature_functions = feature_functions
@@ -1000,6 +1013,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
         self.warm_start = warm_start
         self.verbose = verbose
         self.smoothing_factor = smoothing_factor
+        self.estimate_sampling_stdevs = estimate_sampling_stdevs
 
     def fit(self, X, y):
         """
@@ -1046,6 +1060,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
             max_iter=self.max_iter,
             verbose=self.verbose,
             smoothing_factor=self.smoothing_factor,
+            estimate_sampling_stdevs=self.estimate_sampling_stdevs,
         )
         self.evidence_model.fit(
             X, y
@@ -1137,6 +1152,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         warm_start=False,
         verbose=0,
         smoothing_factor=None,
+        estimate_sampling_stdevs=False,
     ):
         self.feature_functions = feature_functions
         self.auxiliary_sampler = auxiliary_sampler
@@ -1148,6 +1164,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         self.warm_start = warm_start
         self.verbose = verbose
         self.smoothing_factor = smoothing_factor
+        self.estimate_sampling_stdevs = estimate_sampling_stdevs
 
     def fit(self, X, y, sample_weight=None):
         """Fit the baseline classifier.
@@ -1210,6 +1227,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
                 warm_start=self.warm_start,
                 verbose=self.verbose,
                 smoothing_factor=self.smoothing_factor,
+                estimate_sampling_stdevs=self.estimate_sampling_stdevs,
             )
             self.models.append(model)
 
