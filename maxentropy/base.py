@@ -57,9 +57,8 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         sample space and return real values. This is likely to be slow down
         computing the features significantly.
 
-    matrix_format : string
-        Currently 'csr_matrix', 'csc_matrix', and 'ndarray'
-        are recognized.
+    array_format : string
+        Currently 'csr_array', 'csc_array', and 'ndarray' are recognized.
 
     algorithm : string (default 'CG')
         The algorithm can be 'CG', 'BFGS', 'LBFGSB', 'Powell', or
@@ -100,7 +99,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         *,
         prior_log_pdf=None,
         vectorized=True,
-        matrix_format="csr_matrix",
+        array_format="csr_array",
         algorithm="CG",
         maxgtol=1e-7,
         avegtol=1e-7,
@@ -113,7 +112,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         self.feature_functions = feature_functions
         self.prior_log_pdf = prior_log_pdf
         self.vectorized = vectorized
-        self.matrix_format = matrix_format
+        self.array_format = array_format
         self.algorithm = algorithm
         self.max_iter = max_iter
         self.warm_start = warm_start
@@ -138,7 +137,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
             self.feature_functions,
             xs,
             vectorized=self.vectorized,
-            matrix_format=self.matrix_format,
+            array_format=self.array_format,
         )
 
         # TODO: It would be nice to validate that prior_log_pdf is a
@@ -152,8 +151,12 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         if self.prior_log_pdf is None:
             self.priorlogprobs = None
 
-        if self.matrix_format not in ("csr_matrix", "csc_matrix", "ndarray"):
-            raise ValueError("matrix format not understood")
+        if self.array_format not in {
+            "csr_array",
+            "csc_array",
+            "ndarray",
+        }:
+            raise ValueError("array format not understood")
 
         # Clear the stored duals and gradient norms
         self.duals = {}
@@ -199,7 +202,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
     @abstractmethod
     def _setup_features(self, *args, **kwargs):
         """
-        Set up samplers and create a matrix of features
+        Set up samplers and create a 2d array of features
         """
 
     def fit_expectations(self, k):
@@ -298,7 +301,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         self._setup_features()
 
         F = evaluate_feature_matrix(
-            self.feature_functions, X, matrix_format=self.matrix_format
+            self.feature_functions, X, array_format=self.array_format
         )
         k = np.asarray(F.mean(axis=0))
         self.fit_expectations(k)
@@ -516,7 +519,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
     def predict_log_proba(self, X: np.ndarray) -> np.ndarray:
         """
         Returns an array indexed by integers representing the logarithms of the
-        probability mass function (pmf) for each X_j in the (n x m) matrix X
+        probability mass function (pmf) for each X_j in the (n x m) array X
         under the current model (with the current parameter vector self.params).
 
         p(x) is given by:

@@ -11,7 +11,6 @@ from maxentropy.utils import (
     evaluate_feature_matrix,
     feature_sampler,
     evaluate_fn_and_extract_column,
-    force_array,
 )
 from maxentropy.base import BaseMinDivergenceDensity
 
@@ -106,7 +105,7 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
 
     For other parameters, see notes in the BaseModel docstring:
     - algorithm
-    - matrix_format
+    - array_format
     - verbose
 
     Example usage:
@@ -133,7 +132,7 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
         prior_log_pdf=None,
         *,
         vectorized=True,
-        matrix_format="csr_matrix",
+        array_format="csr_array",
         algorithm="CG",
         max_iter=1000,
         verbose=0,
@@ -144,7 +143,7 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
             feature_functions,
             prior_log_pdf=prior_log_pdf,
             vectorized=vectorized,
-            matrix_format=matrix_format,
+            array_format=array_format,
             algorithm=algorithm,
             max_iter=max_iter,
             verbose=verbose,
@@ -170,14 +169,12 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
         # product with the parameters is 1d. So, if it's a matrix, we cast
         # it to an array.
 
-        self.F = force_array(
-            evaluate_feature_matrix(
-                self.feature_functions,
-                self.samplespace,
-                matrix_format=self.matrix_format,
-                vectorized=self.vectorized,
-                verbose=self.verbose,
-            )
+        self.F = evaluate_feature_matrix(
+            self.feature_functions,
+            self.samplespace,
+            array_format=self.array_format,
+            vectorized=self.vectorized,
+            verbose=self.verbose,
         )
 
         if self.prior_log_pdf is not None:
@@ -430,7 +427,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
 
     For other parameters, see notes in the BaseModel docstring:
     - algorithm
-    - matrix_format
+    - array_format
     - verbose
 
 
@@ -461,7 +458,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         prior_log_pdf=None,
         *,
         vectorized=True,
-        matrix_format="csc_matrix",
+        array_format="csc_array",
         warm_start=False,
         algorithm="CG",
         max_iter=1000,
@@ -472,7 +469,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             feature_functions=feature_functions,
             prior_log_pdf=prior_log_pdf,
             vectorized=vectorized,
-            matrix_format=matrix_format,
+            array_format=array_format,
             warm_start=warm_start,
             algorithm=algorithm,
             max_iter=max_iter,
@@ -491,7 +488,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             self.feature_functions,
             self.auxiliary_sampler,
             vectorized=self.vectorized,
-            matrix_format=self.matrix_format,
+            array_format=self.array_format,
         )
         # self.priorlogprobs will be set by resample()
         self.resample()
@@ -553,6 +550,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
 
         # Now generate a new sample. Assume the format is (F, lp, sample):
         (self.sample_F, self.sample_log_probs, self.sample) = next(self.sampleFgen)
+
         # Note: For now, we require that sample_log_probs be 1-dimensional -- i.e. for
         # p(x), not for p(x | k) for multiple classes k. This could perhaps be
         # loosened up later with some thought.
@@ -985,7 +983,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
         auxiliary_sampler: Iterator,
         *,
         vectorized=True,
-        matrix_format="csc_matrix",
+        array_format="csc_array",
         algorithm="CG",
         max_iter=1000,
         warm_start=False,
@@ -996,7 +994,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
         self.feature_functions = feature_functions
         self.auxiliary_sampler = auxiliary_sampler
         self.vectorized = vectorized
-        self.matrix_format = matrix_format
+        self.array_format = array_format
         self.algorithm = algorithm
         self.max_iter = max_iter
         self.warm_start = warm_start
@@ -1042,7 +1040,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
             auxiliary_sampler=self.auxiliary_sampler,
             prior_log_pdf=None,
             vectorized=self.vectorized,
-            matrix_format=self.matrix_format,
+            array_format=self.array_format,
             warm_start=self.warm_start,
             algorithm=self.algorithm,
             max_iter=self.max_iter,
@@ -1133,7 +1131,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         prior_log_pdf=None,
         *,
         vectorized=True,
-        matrix_format="csc_matrix",
+        array_format="csc_array",
         algorithm="CG",
         max_iter=1000,
         warm_start=False,
@@ -1144,7 +1142,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         self.auxiliary_sampler = auxiliary_sampler
         self.prior_log_pdf = prior_log_pdf
         self.vectorized = vectorized
-        self.matrix_format = matrix_format
+        self.array_format = array_format
         self.algorithm = algorithm
         self.max_iter = max_iter
         self.warm_start = warm_start
@@ -1206,7 +1204,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
                 self.auxiliary_sampler,
                 prior_log_pdf=self.prior_log_pdfs[target_class],
                 vectorized=self.vectorized,
-                matrix_format=self.matrix_format,
+                array_format=self.array_format,
                 algorithm=self.algorithm,
                 max_iter=self.max_iter,
                 warm_start=self.warm_start,
@@ -1230,7 +1228,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         """
         Returns
         -------
-        An N x K matrix of log probabilities p(x | k), with one column for each target class k.
+        An N x K array of log probabilities p(x | k), with one column for each target class k.
         """
 
         # Check if fit has been called

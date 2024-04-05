@@ -130,48 +130,48 @@ def test_evaluate_feature_matrix():
 
     # Test dense ndarray:
     F = utils.evaluate_feature_matrix(
-        features, xs, vectorized=True, matrix_format="ndarray"
+        features, xs, vectorized=True, array_format="ndarray"
     )
     assert isinstance(F, np.ndarray)
     assert F.shape == (len(xs), len(features))
 
     # Test csc sparse:
     F = utils.evaluate_feature_matrix(
-        features, xs, vectorized=True, matrix_format="csc_matrix"
+        features, xs, vectorized=True, array_format="csc_array"
     )
     assert scipy.sparse.issparse(F)
-    assert scipy.sparse.isspmatrix_csc(F)
+    assert isinstance(F, scipy.sparse.csc_array)
     assert F.shape == (len(xs), len(features))
 
     # Test csr sparse:
     F = utils.evaluate_feature_matrix(
-        features, xs, vectorized=True, matrix_format="csr_matrix"
+        features, xs, vectorized=True, array_format="csr_array"
     )
     assert scipy.sparse.issparse(F)
-    assert scipy.sparse.isspmatrix_csr(F)
+    assert isinstance(F, scipy.sparse.csr_array)
     assert F.shape == (len(xs), len(features))
 
     # Test that it still works if your functions are vectorized but you pass
     # vectorized=False:
     F = utils.evaluate_feature_matrix(
-        features, xs, vectorized=False, matrix_format="ndarray"
+        features, xs, vectorized=False, array_format="ndarray"
     )
     assert isinstance(F, np.ndarray)
     assert F.shape == (len(xs), len(features))
 
     # Test that the dtype argument works:
     F = utils.evaluate_feature_matrix(
-        features, xs, vectorized=False, matrix_format="ndarray", dtype=np.float32
+        features, xs, vectorized=False, array_format="ndarray", dtype=np.float32
     )
     assert F.dtype == np.float32
 
     F = utils.evaluate_feature_matrix(
-        features, xs, vectorized=False, matrix_format="ndarray", dtype=np.float64
+        features, xs, vectorized=False, array_format="ndarray", dtype=np.float64
     )
     assert F.dtype == np.float64
 
     F = utils.evaluate_feature_matrix(
-        features, xs, vectorized=False, matrix_format="ndarray", dtype=np.int64
+        features, xs, vectorized=False, array_format="ndarray", dtype=np.int64
     )
     assert F.dtype == np.int64
 
@@ -373,7 +373,7 @@ def test_current_api_fixme():
         [non_neg],
         sampler,
         prior_log_pdf=prior_model.logpdf,
-        matrix_format="ndarray",
+        array_format="ndarray",
     )
 
     k = model.features(np.array([df_cancer["mean concavity"].mean()]))
@@ -400,7 +400,7 @@ def test_current_api_fixme():
 #     # the sampler:
 #     model = maxentropy.MinDivergenceDensity(
 #         sampler="uniform",
-#         matrix_format="ndarray",
+#         array_format="ndarray",
 #         sampling_stretch_factor=0.1,
 #         n_samples=10_000,
 #     )
@@ -445,7 +445,7 @@ def test_classifier():
         prior_clf=net,
         prior_class_probs=y_freq,
         # prior_log_proba_fn=lambda xs: forward_pass_centered(net, slice(None), xs),
-        matrix_format="ndarray",
+        array_format="ndarray",
         vectorized=True,
     )
     clf.fit(X_wine, y_wine)

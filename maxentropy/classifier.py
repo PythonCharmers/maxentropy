@@ -26,7 +26,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
     ----------
         prior_clf: sklearn classifier
             This must have a method `.predict_log_proba()` that takes an (n, m)
-            array X and returns a matrix of log class probabilities
+            array X and returns a 2d array of log class probabilities
                 [log p(k | X)]
             of shape (n, k), where k is the number of classes, giving log p(k |
             X). The probabilities must sum to 1 across each row.
@@ -44,7 +44,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         prior_clf=None,
         prior_class_probs=None,
         vectorized=True,
-        matrix_format="csc_matrix",
+        array_format="csc_array",
         algorithm="CG",
         max_iter=1000,
         warm_start=False,
@@ -56,7 +56,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         self.prior_clf = prior_clf
         self.prior_class_probs = prior_class_probs
         self.vectorized = vectorized
-        self.matrix_format = matrix_format
+        self.array_format = array_format
         self.algorithm = algorithm
         self.max_iter = max_iter
         self.warm_start = warm_start
@@ -129,7 +129,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
                 self.auxiliary_sampler,
                 prior_log_pdf=prior_log_pdfs[target_class],
                 vectorized=self.vectorized,
-                matrix_format=self.matrix_format,
+                array_format=self.array_format,
                 algorithm=self.algorithm,
                 max_iter=self.max_iter,
                 warm_start=self.warm_start,
@@ -140,9 +140,6 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         for target_class, model in self.models.items():
             # Filter the rows of X to those whose corresponding y matches the target class:
             X_subset = X[y == target_class]
-            # F = evaluate_feature_matrix(
-            #     model.feature_functions, X_subset, matrix_format=self.matrix_format
-            # )
             if self.verbose:
                 print(f"Fitting model for target {target_class}")
             model.fit(X_subset)
@@ -238,7 +235,7 @@ class D2GClassifier(ClassifierMixin, BaseEstimator):
     normalizing so sum_k p(k | x) = 1 across the K classes k=1, ..., K for all
     observations x.
 
-    We expect posterior_log_pdf to return a N x K matrix of log probabilities
+    We expect posterior_log_pdf to return a N x K array of log probabilities
     log p(x | k), with one column for each of the classes k=1, ..., K.
     """
 
@@ -249,7 +246,7 @@ class D2GClassifier(ClassifierMixin, BaseEstimator):
         prior_class_probs=None,
         *,
         vectorized=True,
-        matrix_format="csc_matrix",
+        array_format="csc_array",
         algorithm="CG",
         max_iter=1000,
         warm_start=False,
@@ -259,7 +256,7 @@ class D2GClassifier(ClassifierMixin, BaseEstimator):
         self.posterior_log_pdf = posterior_log_pdf
         self.prior_class_probs = prior_class_probs
         self.vectorized = vectorized
-        self.matrix_format = matrix_format
+        self.array_format = array_format
         self.algorithm = algorithm
         self.max_iter = max_iter
         self.warm_start = warm_start
