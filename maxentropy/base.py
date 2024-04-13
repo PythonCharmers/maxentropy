@@ -8,6 +8,7 @@ import numpy as np
 from scipy import optimize
 from scipy.linalg import norm
 from sklearn.utils.validation import check_is_fitted, check_array
+from sklearn.metrics import mean_squared_error
 
 from maxentropy.utils import (
     DivergenceError,
@@ -492,6 +493,12 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
             self.gradevals += 1
 
         return G
+
+    def mse(self):
+        """
+        Return the mean squared error of the desired versus estimated feature expectations.
+        """
+        return mean_squared_error(self.feature_expectations(), self.K)
 
     def cross_entropy(self, fx, log_prior_x=None, base=np.e):
         r"""Returns the cross entropy H(q, p) of the empirical

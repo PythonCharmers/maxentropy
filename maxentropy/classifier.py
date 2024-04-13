@@ -4,6 +4,7 @@ constraints.
 """
 
 from collections.abc import Callable, Iterator, Sequence
+from typing import Optional
 
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
@@ -22,6 +23,8 @@ from maxentropy.density import MinDivergenceDensity
 
 class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
     """
+    TODO: reimplement this more simply in terms of the other components.
+
     Parameters
     ----------
         prior_clf: sklearn classifier
@@ -237,21 +240,28 @@ class D2GClassifier(ClassifierMixin, BaseEstimator):
 
     We expect posterior_log_pdf to return a N x K array of log probabilities
     log p(x | k), with one column for each of the classes k=1, ..., K.
+
+    prior_class_probs must be a 1d array of length k giving the proportions of
+    each target class (unique y_train value) in the training set. You can estimate this from the proportions of each class k in the training data labels y_train using:
+
+        freq = np.bincount(y)
+        prior_class_probs = freq / np.sum(freq)
+
     """
 
     def __init__(
         self,
         # Maybe one day we'll have this instead: posterior_density: DensityMixin
         posterior_log_pdf: Callable,
-        prior_class_probs=None,
+        prior_class_probs: np.ndarray,
         *,
-        vectorized=True,
-        array_format="csc_array",
-        algorithm="CG",
-        max_iter=1000,
-        warm_start=False,
-        verbose=0,
-        smoothing_factor=None,
+        vectorized: bool = True,
+        array_format: str = "csc_array",
+        algorithm: str = "CG",
+        max_iter: int = 1000,
+        warm_start: bool = False,
+        verbose: int = 0,
+        smoothing_factor: Optional[float] = None,
     ):
         self.posterior_log_pdf = posterior_log_pdf
         self.prior_class_probs = prior_class_probs
@@ -346,4 +356,4 @@ class D2GClassifier(ClassifierMixin, BaseEstimator):
         return predictions
 
 
-__all__ = ["MinDivergenceClassifier", "D2GClassifier"]
+__all__ = ["D2GClassifier"]

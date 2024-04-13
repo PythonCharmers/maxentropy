@@ -119,7 +119,7 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
     >>> k = [18 / 4]
 
     >>> samplespace = list(range(1, 7))
-    >>> model = MinDivergenceModel(features, samplespace)
+    >>> model = DiscreteMinDivergenceDensity(features, samplespace)
     >>> X = np.atleast_2d(k)
     >>> model.fit(X)
 
@@ -424,6 +424,14 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         In both cases the minimization / maximization are done subject to the
         same constraints on feature expectations.
 
+    matrixtrials : int (default 1)
+
+        Number of sample matrices to generate and use each iteration to estimate
+        E and logZ.  Normally this will be 1. Setting this > 1 would be much
+        slower, since self.sampleFgen() will be called once for each trial
+        {0, ..., matrixtrials} at each iteration, but this could offer more
+        accurate estimates toward the end of the fitting process, when we are
+        near convergence.
 
     For other parameters, see notes in the BaseModel docstring:
     - algorithm
@@ -465,6 +473,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         verbose=0,
         smoothing_factor=None,
         estimate_sampling_stdevs=False,
+        matrixtrials=1,
     ):
         super().__init__(
             feature_functions=feature_functions,
@@ -479,6 +488,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         )
         self.auxiliary_sampler = auxiliary_sampler
         self.estimate_sampling_stdevs = estimate_sampling_stdevs
+        self.matrixtrials = matrixtrials
 
     def _setup_features(self):
         """
@@ -502,23 +512,8 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         """
         super()._validate_and_setup()
 
-        # Number of sample matrices to generate and use each iteration to estimate E and logZ.
-        # Normally this will be 1. Setting this > 1 would be much slower but could offer
-        # more accurate estimates toward the end of the fitting process, when we
-        # are near convergence.
-        self.matrixtrials = 1
-
         # Store the lowest dual estimate observed so far in the fitting process
         self.bestdual = float("inf")
-
-        # Whether or not to use the same sample for all iterations
-        self.staticsample = True
-        # If matrixtrials > 1 and staticsample = True, (which is useful for
-        # estimating variance between the different feature estimates),
-        # next(self.samplerFgen) will be called once for each trial
-        # (0,...,matrixtrials) for each iteration.  This allows using a set
-        # of feature matrices, each of which stays constant over all
-        # iterations.
 
         # Test for convergence every 'testevery' iterations, using one or
         # more external samples. If 0, don't test.
@@ -627,11 +622,6 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         Estimate the feature expectations (generalized "moments") E_p[f(X)]
         under the current model p = p_theta using the given sample feature
         matrix.
-
-        If self.staticsample is True, uses the current feature matrix
-        self.sample_F.  If self.staticsample is False or self.matrixtrials
-        is > 1, draw one or more sample feature matrices F afresh using
-        the generator function self.sampleFgen().
         """
         # See if already computed
         if hasattr(self, "mu"):
@@ -730,6 +720,10 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         We can compute the denominator n*Zapprox directly as:
             exp(logsumexp(log p_dot(s_j) - log aux_dist(s_j)))
           = exp(logsumexp(theta.f(s_j) - log aux_dist(s_j)))
+
+        If self.matrixtrials is > 1, draw one or more sample feature matrices F
+        afresh using the generator function self.sampleFgen().
+
         """
 
         if self.verbose >= 3:
@@ -742,7 +736,6 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
 
         mus = []
         logZs = []
-        # effective_sample_sizes = []
 
         # We want to calculate the variance of the ratio importance sampling estimator.
         # This is defined as the vector (with components i):
@@ -753,7 +746,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
                 print("(trial " + str(trial) + " ...)")
 
             # Resample if necessary
-            if (not self.staticsample) or self.matrixtrials > 1:
+            if trial > 1:
                 self.resample()
 
             log_w_dot = self._log_w_dot()
@@ -791,7 +784,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
                 pass
         else:
             self.mu = np.mean(mus, axis=0)  # column means
-            self.varE = mus.var(axis=0)  # column variances
+            self.varE = np.var(mus, axis=0)  # column variances
             self.logZapprox = logsumexp(logZs) - np.log(self.matrixtrials)
             if self.estimate_sampling_stdevs:
                 self.stdevs_ = np.sqrt(
@@ -801,9 +794,6 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
                 )
             else:
                 self.stdevs_ = None
-
-        # CHECK: Is this a valid thing to do if matrixtrials > 1?
-        # self.effective_sample_size_ = np.mean(effective_sample_sizes)
 
     def pdf_function(self):
         """Returns the estimated density p_theta(x) as a function p(f)
@@ -951,13 +941,13 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
 
 class D2GDensity(DensityMixin, BaseEstimator):
     """
-    A "discriminative to generative" density model p(x | k) induced from a
-    discriminative classifier and feature constraints.
+    A "discriminative to generative" density model p(x | k) induced from a prior
+    classifier and feature constraints.
 
     Requires
     --------
-        - a fitted discriminative classifier whose predict_log_proba() method
-          predicts the (log) probability p(k | x) of each class k given an
+        - the predict_log_proba() function of a fitted discriminative classifier
+          which predicts the (log) probability p(k | x) of each class k given an
           observation x;
         - feature functions f_i(X) whose expectations to constrain as E f_i(X) = b_i
         - a training dataset X from which we count the empirical frequencies b
@@ -965,7 +955,6 @@ class D2GDensity(DensityMixin, BaseEstimator):
 
     Attributes
     ----------
-
         evidence_clf:
             a fitted sklearn-compatible density whose `predict_log_proba(x)` method
             gives the background probability density p(x) of the observation x
@@ -976,21 +965,21 @@ class D2GDensity(DensityMixin, BaseEstimator):
 
     Parameters
     ----------
-        discriminative_clf: sklearn classifier
-            This must have a method `.predict_log_proba()` that takes an (n, m)
-            array X and returns a matrix of log class probabilities
+        prior_predict_log_proba: Callable:
+            The method `.predict_log_proba` of a sklearn classifier or
+            equivalent function. This must take an (n, m) array X and return a
+            matrix of log class probabilities
                 [log p(k | X)]
-            of shape (n, k), where k is the number of classes, giving log p(k |
-            X). The probabilities are expected to sum to 1 across each row.
+            of shape (n, K), where K is the number of classes. The probabilities
+            are expected to sum to 1 across each row.
 
             This will be evaluated on the samples produced by
-            `auxiliary_sampler` and the outputs will be extracted as column d
-            for each class k in turn.
+            `auxiliary_sampler`.
     """
 
     def __init__(
         self,
-        discriminative_clf,
+        prior_predict_log_proba,
         feature_functions: Sequence[Callable],
         auxiliary_sampler: Iterator,
         *,
@@ -1002,8 +991,9 @@ class D2GDensity(DensityMixin, BaseEstimator):
         verbose=0,
         smoothing_factor=None,
         estimate_sampling_stdevs=False,
+        matrixtrials=1,
     ):
-        self.discriminative_clf = discriminative_clf
+        self.prior_predict_log_proba = prior_predict_log_proba
         self.feature_functions = feature_functions
         self.auxiliary_sampler = auxiliary_sampler
         self.vectorized = vectorized
@@ -1014,6 +1004,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
         self.verbose = verbose
         self.smoothing_factor = smoothing_factor
         self.estimate_sampling_stdevs = estimate_sampling_stdevs
+        self.matrixtrials = matrixtrials
 
     def fit(self, X, y):
         """
@@ -1061,6 +1052,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
             verbose=self.verbose,
             smoothing_factor=self.smoothing_factor,
             estimate_sampling_stdevs=self.estimate_sampling_stdevs,
+            matrixtrials=self.matrixtrials,
         )
         self.evidence_model.fit(
             X, y
@@ -1093,7 +1085,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
         X = check_array(X)
 
         log_p_x_given_k = (
-            self.discriminative_clf.predict_log_proba(X)
+            self.prior_predict_log_proba(X)
             + np.reshape(self.evidence_model.predict_log_proba(X), (-1, 1))
             - np.log(self.prior_class_probs)
         )
@@ -1121,7 +1113,7 @@ class D2GDensity(DensityMixin, BaseEstimator):
 
 
 class MinDivergenceFamily(DensityMixin, BaseEstimator):
-    """
+    r"""
     An ensemble or family of conditional densities p(x | k) for different
     classes k=1,...,K.
 
@@ -1153,6 +1145,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         verbose=0,
         smoothing_factor=None,
         estimate_sampling_stdevs=False,
+        matrixtrials=1,
     ):
         self.feature_functions = feature_functions
         self.auxiliary_sampler = auxiliary_sampler
@@ -1165,6 +1158,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         self.verbose = verbose
         self.smoothing_factor = smoothing_factor
         self.estimate_sampling_stdevs = estimate_sampling_stdevs
+        self.matrixtrials = matrixtrials
 
     def fit(self, X, y, sample_weight=None):
         """Fit the baseline classifier.
@@ -1228,6 +1222,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
                 verbose=self.verbose,
                 smoothing_factor=self.smoothing_factor,
                 estimate_sampling_stdevs=self.estimate_sampling_stdevs,
+                matrixtrials=self.matrixtrials,
             )
             self.models.append(model)
 

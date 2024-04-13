@@ -14,6 +14,7 @@ import toolz as tz
 # from numpy import log, exp, asarray, ndarray, empty
 import scipy.sparse
 from sklearn.base import BaseEstimator, TransformerMixin, DensityMixin
+from sklearn.mixture import GaussianMixture
 from sklearn.utils import check_array
 
 
@@ -58,7 +59,44 @@ def bounds_stretched(X, stretch_factor=0.1):
     return (stretched_minima, stretched_maxima)
 
 
-def auxiliary_sampler_scipy(distribution, n_dims=1, n_samples=1):
+def auxiliary_sampler_gaussian_mixture(
+    model: GaussianMixture, n_samples=1, output_format="numpy"
+):
+    """
+    A generator function for samples from the given scipy.stats distribution.
+
+    Parameters
+    ----------
+    model : a fitted sklearn.mixture.GaussianMixture model
+
+    n_samples: the number of samples to generate and yield in each iteration
+
+    output_format: either 'numpy' or 'pytorch'
+
+    Returns
+    -------
+    A generator that yields tuples of length 2:
+        (xs, log_q_xs)
+    where:
+        xs : 2d array (n_samples x n_dims): [x_1, ..., x_n]: a sample
+    and:
+        log_q_xs: log pdf values under the auxiliary sampler q for each x_j (for j = 1 through n_samples)
+    """
+    while True:
+        xs, _ = model.sample(n_samples=n_samples)
+        log_q_xs = model.score_samples(xs)
+        if output_format == "numpy":
+            yield (xs, log_q_xs)
+        elif output_format == "pytorch":
+            import torch
+
+            yield (
+                torch.tensor(xs, dtype=torch.float32),
+                torch.tensor(log_q_xs, dtype=torch.float32),
+            )
+
+
+def auxiliary_sampler_scipy(distribution, n_dims=1, n_samples=1, output_format="numpy"):
     """
     A generator function for samples from the given scipy.stats distribution.
 
@@ -68,10 +106,15 @@ def auxiliary_sampler_scipy(distribution, n_dims=1, n_samples=1):
 
         Note: distribution.rvs(size=(n_samples, n_dims) must return an array (n_samples x n_dims).
 
-    n_dims: the number of dimensions we want in our samples (each
-         using the same distribution object)
+    n_dims: int or tuple of ints
+        the number of dimensions we want in our samples (each using the same
+        distribution object). This can be a tuple (n_dims0, n_dims1) to sample
+        3d tensors of shape (n_samples, n_dims, n_features) from the given
+        distribution.
 
     n_samples: the number of samples to generate and yield in each iteration
+
+    output_format: either 'numpy' or 'pytorch'
 
     Returns
     -------
@@ -79,14 +122,29 @@ def auxiliary_sampler_scipy(distribution, n_dims=1, n_samples=1):
         (xs, log_q_xs)
     where:
         xs : 2d array (n_samples x n_dims): [x_1, ..., x_n]: a sample
-        log_q_xs: log pdf values under the auxiliary sampler q for each x_j (for j = 1 through n)
-
+    or:
+        xs : 3d array (n_samples x n_dims[0] x n_dims[1]): [x_1, ..., x_n_samples]: a sample
+    and:
+        log_q_xs: log pdf values under the auxiliary sampler q for each x_j (for j = 1 through n_samples)
     """
-    size = (n_samples, n_dims)
+    if isinstance(n_dims, tuple):
+        size = (n_samples,) + n_dims
+    else:
+        assert isinstance(n_dims, int)
+        size = (n_samples, n_dims)
+    reduce_axes = -1 if len(size) == 2 else (-1, -2)
     while True:
         xs = distribution.rvs(size=size)
-        log_q_xs = np.log(distribution.pdf(xs)).sum(axis=1)
-        yield (xs, log_q_xs)
+        log_q_xs = np.log(distribution.pdf(xs)).sum(reduce_axes)
+        if output_format == "numpy":
+            yield (xs, log_q_xs)
+        elif output_format == "pytorch":
+            import torch
+
+            yield (
+                torch.tensor(xs, dtype=torch.float32),
+                torch.tensor(log_q_xs, dtype=torch.float32),
+            )
 
 
 class FeatureTransformer(BaseEstimator, TransformerMixin):
@@ -539,19 +597,42 @@ def dictsampler(freq, size=()):
         yield dictsample(freq, size=size, return_probs="logprob")
 
 
-def make_uniform_sampler(minima, maxima, n_samples=100_000) -> Generator:
+def make_uniform_sampler(
+    minima, maxima, n_samples=100_000, output_format="numpy"
+) -> Generator:
     """
     Returns a generator suitable for passing into MinDivergenceDensity and
-    MinDivergenceClassifier models.
+    D2GDensity models.
 
-    Pass bounds as a tuple (minima, maxima), where each has length equal to X.shape[1].
+    Pass minima and maxima, where each has length equal to X.shape[1].
     """
     minima = np.ravel(minima)
     maxima = np.ravel(maxima)
     assert minima.shape == maxima.shape and minima.ndim == 1
     n_dims = len(minima)
     uniform_dist = scipy.stats.uniform(minima, maxima - minima)
-    sampler = auxiliary_sampler_scipy(uniform_dist, n_dims=n_dims, n_samples=n_samples)
+    sampler = auxiliary_sampler_scipy(
+        uniform_dist, n_dims=n_dims, n_samples=n_samples, output_format=output_format
+    )
+    return sampler
+
+
+def make_uniform_sampler_3d(
+    minima, maxima, n_dims=1, n_samples=10_000, output_format="numpy"
+) -> Generator:
+    """
+    Returns a generator suitable for passing into MinDivergenceDensity and
+    D2GDensity models.
+
+    Pass minima and maxima, where each has length equal to X.shape[1].
+    """
+    uniform_dist = scipy.stats.uniform(minima, maxima - minima)
+    sampler = auxiliary_sampler_scipy(
+        uniform_dist,
+        n_dims=(n_dims, len(minima)),
+        n_samples=n_samples,
+        output_format=output_format,
+    )
     return sampler
 
 
@@ -596,6 +677,26 @@ def evaluate_fn_and_extract_column(fn, k, X):
         0
     """
     return fn(X)[:, k]
+
+
+@tz.curry
+def cutoff_low(cutoff, column, X):
+    """
+    Adding this as a constraint forces our model for each class
+    to assign the same probability of being above this cutoff as the
+    per-class empirical frequency in the dataset.
+    """
+    return X[:, column] >= cutoff
+
+
+@tz.curry
+def cutoff_high(cutoff, column, X):
+    """
+    Adding this as a constraint forces our model for each class
+    to assign the same probability of being below this cutoff as the
+    per-class empirical frequency in the dataset.
+    """
+    return X[:, column] <= cutoff
 
 
 def _test():

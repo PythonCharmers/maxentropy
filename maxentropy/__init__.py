@@ -93,7 +93,7 @@ from .density import (
     D2GDensity,
     MinDivergenceFamily,
 )
-from .classifier import MinDivergenceClassifier, D2GClassifier
+from .classifier import D2GClassifier
 
 
 # Make sure that DeprecationWarning within this package always gets printed
@@ -110,7 +110,6 @@ __all__ = [
     "D2GDensity",
     "MinDivergenceFamily",
     "D2GClassifier",
-    "MinDivergenceClassifier",
 ]
 
 # PEP0440 compatible formatted version, see:
