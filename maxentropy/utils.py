@@ -147,6 +147,18 @@ def auxiliary_sampler_scipy(distribution, n_dims=1, n_samples=1, output_format="
             )
 
 
+# from diskcache import Cache
+#
+# cache = Cache(CACHE_DIR)
+#
+#
+# @cache.memoize():
+# def caching_sampler(auxiliary_sampler_gen, batch_num: int = 0):
+#     """
+#     A cached function that yields
+#     """
+
+
 class FeatureTransformer(BaseEstimator, TransformerMixin):
     """
     Transform observations into a 2d array of real-valued features

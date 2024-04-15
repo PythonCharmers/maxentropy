@@ -66,12 +66,6 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         self.verbose = verbose
         self.smoothing_factor = smoothing_factor
 
-    def _validate_and_setup(self):
-        """
-        Various checks and setup stuff
-        """
-        self.prior_class_probs = column_or_1d(self.prior_class_probs)
-
     # @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y, sample_weight=None):
         """Fit the baseline classifier.
@@ -101,7 +95,7 @@ class MinDivergenceClassifier(ClassifierMixin, BaseEstimator):
         # Handle non-contiguous output labels y:
         self.classes_, y = np.unique(y, return_inverse=True)
 
-        self._validate_and_setup()
+        self.prior_class_probs = column_or_1d(self.prior_class_probs)
 
         if not self.warm_start:
             self.models = {}

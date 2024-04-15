@@ -238,7 +238,6 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
         """The vector E_p[f(X)] under the model p_theta of the vector of
         feature functions f_i over the sample space.
         """
-        self._validate_and_setup()
         # For discrete models, use the representation E_p[f(X)] = p . F
         if not hasattr(self, "F"):
             raise AttributeError("first set the feature matrix F")
@@ -312,7 +311,9 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
         return divergence
 
     def _check_features(self):
-        """Validate whether the feature matrix has been set properly."""
+        """
+        Validate whether the feature matrix has been set properly.
+        """
         # Ensure the feature matrix for the sample space has been set
         if not hasattr(self, "F"):
             raise AttributeError("missing feature matrix")
@@ -474,6 +475,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         smoothing_factor=None,
         estimate_sampling_stdevs=False,
         matrixtrials=1,
+        own_features=True,
     ):
         super().__init__(
             feature_functions=feature_functions,
@@ -485,6 +487,7 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             max_iter=max_iter,
             verbose=verbose,
             smoothing_factor=smoothing_factor,
+            own_features=own_features,
         )
         self.auxiliary_sampler = auxiliary_sampler
         self.estimate_sampling_stdevs = estimate_sampling_stdevs
@@ -494,46 +497,27 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         """
         Setup samplers and an initial sample with its feature matrix
         """
-        assert isinstance(self.auxiliary_sampler, Iterator)
-
-        self.sampleFgen = feature_sampler(
-            self.feature_functions,
-            self.auxiliary_sampler,
-            vectorized=self.vectorized,
-            array_format=self.array_format,
-        )
-        # self.priorlogprobs will be set by resample()
-        self.resample()
+        if self.own_features:
+            assert isinstance(self.auxiliary_sampler, Iterator)
+            self.sampleFgen = feature_sampler(
+                self.feature_functions,
+                self.auxiliary_sampler,
+                vectorized=self.vectorized,
+                array_format=self.array_format,
+            )
+            self.resample()  # this skips if necessary
         self._check_features()
-
-    def _validate_and_setup(self):
-        """
-        Various checks and setup stuff
-        """
-        super()._validate_and_setup()
-
-        # Store the lowest dual estimate observed so far in the fitting process
-        self.bestdual = float("inf")
-
-        # Test for convergence every 'testevery' iterations, using one or
-        # more external samples. If 0, don't test.
-        self.testevery = 0
-
-    def _check_features(self):
-        """
-        Validation of whether the feature matrix has been set properly
-        """
-        # Ensure the sample matrix has been set
-        if not (hasattr(self, "sample_F") and hasattr(self, "sample_log_probs")):
-            raise AttributeError("first specify a sample feature matrix")
 
     def resample(self):
         """
         (Re)sample the matrix F of sample features, sample log probs, and
         (optionally) sample points too.
         """
-
-        if self.verbose >= 2:
+        if not self.own_features:
+            if self.verbose > 1:
+                print(f"Skipping .resample() on {self} since own_features is True.")
+            return
+        if self.verbose > 1:
             print("Sampling...")
 
         # First delete the existing sample matrix to save memory
@@ -547,6 +531,42 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
 
         # Now generate a new sample. Assume the format is (F, lp, sample):
         (self.sample_F, self.sample_log_probs, self.sample) = next(self.sampleFgen)
+
+        if self.verbose > 1:
+            print("Finished sampling.")
+
+        # Evaluate the prior log probabilities on the sample (for KL div
+        # minimization)
+        if self.prior_log_pdf is not None:
+            if self.verbose > 1:
+                print(
+                    "Evaluating the log probabilities of the sample under the prior model ..."
+                )
+            lp = self.prior_log_pdf(self.sample)
+            self.priorlogprobs = np.reshape(lp, len(self.sample))
+            if self.verbose > 1:
+                print("Done.")
+
+        # Now clear the temporary variables that are no longer correct for this
+        # sample:
+        self.clearcache()
+
+    def _check_features(self):
+        """
+        Check that the sampled features and log probs and prior log probs have
+        the correct structure.
+        """
+        # Ensure the sample matrix has been set
+        if not (hasattr(self, "sample_F") and hasattr(self, "sample_log_probs")):
+            raise AttributeError(
+                "first specify a sample feature matrix and log probs under the auxiliary sampling distribution"
+            )
+
+        if self.prior_log_pdf is not None:
+            if not hasattr(self, "priorlogprobs"):
+                raise AttributeError(
+                    "first set priorlogprobs as the log probs of the sample under the prior model"
+                )
 
         # Note: For now, we require that sample_log_probs be 1-dimensional -- i.e. for
         # p(x), not for p(x | k) for multiple classes k. This could perhaps be
@@ -562,24 +582,18 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
                 f"Your auxiliary sampler is producing NaN log probabilities. The first row (observation) that it does this for is:\n{self.sample[fail_index]}. Debug this!"
             )
 
-        # Evaluate the prior log probabilities on the sample (for KL div
-        # minimization)
-        if self.prior_log_pdf is not None:
-            lp = self.prior_log_pdf(self.sample)
-            self.priorlogprobs = np.reshape(lp, len(self.sample))
-
         n, m = self.sample_F.shape
-        if not hasattr(self, "params"):
-            self.params = np.zeros(m, np.float64)
-        else:
-            # Check whether the number m of features and the dimensionalities are correct.
-            # The number of features is defined as the length of # self.params.
-            if m != len(self.params):
-                raise ValueError(
-                    "the sample feature iterator returned"
-                    " a feature matrix of incorrect dimensions."
-                    " The number of rows must equal the number of model parameters."
-                )
+        # if not hasattr(self, "params"):
+        #     self.params = np.zeros(m, np.float64)
+        # else:
+        # Check whether the number m of features and the dimensionalities are correct.
+        # The number of features is defined as the length of # self.params.
+        if m != len(self.params):
+            raise ValueError(
+                "the sample feature iterator returned a feature matrix of incorrect dimensions. "
+                "The number of columns must equal the number of model parameters "
+                "(which is equal to the number of feature functions)."
+            )
 
         # Check the dimensionality of sample_log_probs is correct. It should be 1d, of length n
         if not (
@@ -587,15 +601,8 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
             and self.sample_log_probs.shape == (n,)
         ):
             raise ValueError(
-                "Your sampler appears to be spitting out logprobs of the wrong dimensionality."
+                "Your sampler appears to be spitting out logprobs of the wrong dimensionality or length."
             )
-
-        if self.verbose >= 2:
-            print("Finished sampling.")
-
-        # Now clear the temporary variables that are no longer correct for this
-        # sample
-        self.clearcache()
 
     def log_norm_constant(self):
         """Estimate the normalization constant (partition function) using
@@ -610,7 +617,6 @@ class MinDivergenceDensity(BaseMinDivergenceDensity):
         # features.
         log_w_dot = self._log_w_dot()
 
-        # Good, we have our log_w_dot.  Now:
         n = len(log_w_dot)
         self.logZapprox = logsumexp(log_w_dot) - math.log(n)
         if np.isnan(self.logZapprox):
@@ -1160,6 +1166,78 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         self.estimate_sampling_stdevs = estimate_sampling_stdevs
         self.matrixtrials = matrixtrials
 
+    def _setup_features(self):
+        """
+        Setup samplers and an initial sample with its feature matrix
+        """
+        assert isinstance(self.auxiliary_sampler, Iterator)
+
+        self.sampleFgen = feature_sampler(
+            self.feature_functions,
+            self.auxiliary_sampler,
+            vectorized=self.vectorized,
+            array_format=self.array_format,
+        )
+        if not hasattr(self, "_setup_done"):
+            self.resample()
+        self._setup_done = True
+
+    def resample(self):
+        """
+        (Re)sample the matrix F of sample features, sample log probs, and
+        (optionally) sample points too.
+
+        Call _delegate_samples() after calling this (and after the sub-models
+        exist).
+        """
+
+        if self.verbose > 1:
+            print("Sampling...")
+
+        # First delete the existing sample matrix to save memory
+        # This matters, since these can be very large
+        if hasattr(self, "sample_F"):
+            del self.sample_F
+        if hasattr(self, "sample_log_probs"):
+            del self.sample_log_probs
+        if hasattr(self, "sample"):
+            del self.sample
+
+        # Now generate a new sample. Assume the format is (F, lp, sample):
+        (self.sample_F, self.sample_log_probs, self.sample) = next(self.sampleFgen)
+
+        if self.verbose > 1:
+            print("Finished sampling.")
+
+        # Evaluate the prior log probabilities on the sample (for KL div
+        # minimization)
+        if self.prior_log_pdf is not None:
+            if self.verbose > 1:
+                print(
+                    "Evaluating the log probabilities of the sample under the prior model ..."
+                )
+            # In general this will be a matrix for sklearn classifiers with C columns for C
+            # different classes:
+            self.priorlogprobs = self.prior_log_pdf(self.sample)
+            # We pull it apart in .fit().
+
+    def _delegate_samples(self):
+        """
+        Assign this sample (and associated feature matrix and log probs etc.) to
+        the sub-models.
+        """
+        for target_class, model in enumerate(self.models):
+            # Re-use the same sample features etc. across all conditional models:
+            model.sample_F = self.sample_F
+            model.sample_log_probs = self.sample_log_probs
+            model.sample = self.sample
+            if self.prior_log_pdf is not None:
+                model.priorlogprobs = self.priorlogprobs[:, target_class]
+
+            # Now clear the temporary variables that are no longer correct for this
+            # sample:
+            model.clearcache()
+
     def fit(self, X, y, sample_weight=None):
         """Fit the baseline classifier.
 
@@ -1188,6 +1266,10 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         # Handle non-contiguous output labels y:
         self.classes_, y = np.unique(y, return_inverse=True)
 
+        # We draw one sample here and then re-use it for all the conditional
+        # models in this family:
+        self._setup_features()
+
         if not self.warm_start:
             self.models = (
                 []
@@ -1200,6 +1282,7 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
             if self.prior_log_pdf is None:
                 self.prior_log_pdfs[target_class] = None
             else:
+                # We set this to a function (partially evaluated) which expects X:
                 self.prior_log_pdfs[target_class] = evaluate_fn_and_extract_column(
                     self.prior_log_pdf, target_class
                 )
@@ -1223,8 +1306,11 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
                 smoothing_factor=self.smoothing_factor,
                 estimate_sampling_stdevs=self.estimate_sampling_stdevs,
                 matrixtrials=self.matrixtrials,
+                own_features=False,
             )
             self.models.append(model)
+
+        self._delegate_samples()
 
         for target_class, model in enumerate(self.models):
             # Filter the rows of X to those whose corresponding y matches the target class:

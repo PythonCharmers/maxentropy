@@ -92,6 +92,13 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
            maximum entropy models. (CMU-CS-99-108), Carnegie Mellon University
            (1999).
 
+    own_features : bool (default True)
+        By default, the model gets and uses its own feature generator at
+        self.sampleFgen. But for conditional models it can make sense to share a
+        single sample across multiple models, each with their own parameters. In
+        that case you can set own_features=False and then set up .sample_F and
+        .sample_log_probs yourself.
+
     """
 
     def __init__(
@@ -109,6 +116,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         warm_start=False,
         verbose=0,
         smoothing_factor=None,
+        own_features=True,
     ):
         self.feature_functions = feature_functions
         self.prior_log_pdf = prior_log_pdf
@@ -131,8 +139,19 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         # Penalizes parameter values far from zero:
         self.smoothing_factor = smoothing_factor
 
-    def _validate_and_setup(self):
-        self.resetparams()
+        self.own_features = own_features
+
+    def _setup(self):
+        """
+        This method creates and initializes various internal hyper-parameters.
+        We'd like to run this when the estimator instance gets created, but
+        sklearn prevents us from setting anything other than the hyperparameters
+        passed into __init__(). So instead we invoke this from fit_expectations().
+        """
+        if hasattr(self, "_setup_done"):
+            if self.verbose > 1:
+                print(f"Estimator {self} already initialized. Skipping _setup().")
+            return
 
         self.features = lambda xs: evaluate_feature_matrix(
             self.feature_functions,
@@ -159,16 +178,6 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         }:
             raise ValueError("array format not understood")
 
-        # Clear the stored duals and gradient norms
-        self.duals = {}
-        self.gradnorms = {}
-        if hasattr(self, "external_duals"):
-            self.external_duals = {}
-        if hasattr(self, "external_gradnorms"):
-            self.external_gradnorms = {}
-        if hasattr(self, "external"):
-            self.external = None
-
         self.callingback = False
 
         # Default tolerance for stochastic approximation: stop if
@@ -177,28 +186,41 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
 
         self.maxfun = 1500
         self.mindual = -100.0  # The entropy dual must actually be
-        # non-negative, but the estimate may be slightly
-        # out with BigModel instances without implying
-        # divergence to -inf
+        # non-negative, but the estimate may be slightly out when using sampling
+        # without implying divergence to -inf.
         self.callingback = False
-        self.n_iter_ = 0  # the number of iterations so far of the
-        # optimization algorithm
-        self.fnevals = 0
-        self.gradevals = 0
 
-        # Store the duals for each fn evaluation during fitting?
-        self.storeduals = False
-        self.duals = {}
-        self.storegradnorms = False
-        self.gradnorms = {}
+        if not self.warm_start:
+            self.resetparams()
+            self.n_iter_ = 0  # the number of iterations so far of the
+            # optimization algorithm
+            self.fnevals = 0
+            self.gradevals = 0
 
-        # By default, use the sample matrix sampleF to estimate the entropy dual
+            # Store the duals for each fn evaluation during fitting?
+            self.storeduals = False
+            self.duals = {}
+            self.storegradnorms = False
+            self.gradnorms = {}
+
+            # Store the lowest dual estimate observed so far in the fitting process
+            self.bestdual = float("inf")
+
+        # By default, use the sample matrix sample_F to estimate the entropy dual
         # and its gradient.  Otherwise, set self.external to the index of the
         # sample feature matrix in the list self.externalFs.  This applies to
         # 'BigModel' objects only, but setting this here simplifies the code in
         # dual() and grad().
         self.external = None
         self.external_priorlogprobs = None
+
+        # Test for convergence every 'testevery' iterations, using one or
+        # more external samples. If 0, don't test.
+        self.testevery = 0
+
+        self._setup_features()
+
+        self._setup_done = True
 
     @abstractmethod
     def _setup_features(self, *args, **kwargs):
@@ -228,11 +250,8 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         if n_samples != 1:
             raise ValueError("k must have only one row")
 
-        self._validate_and_setup()
-        self._setup_features()
-
-        # if not (hasattr(self, "F") or hasattr(self, "sample_F")):
-        #     raise ValueError("Call _setup_features before calling fit_expectations")
+        # TODO: handle warm_start...
+        self._setup()
 
         # Extract a 1d array of the feature expectations
         # K = np.asarray(X[0], float)
@@ -242,8 +261,8 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         # Store the desired feature expectations as a member variable
         self.K = K
 
-        if (not self.warm_start) or not hasattr(self, "params"):
-            self.resetparams()
+        # if (not self.warm_start) or not hasattr(self, "params"):
+        #     self.resetparams()
         # Sanity check:
         if len(self.params) != len(K):
             raise ValueError(
@@ -256,7 +275,8 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         callback = self.log
 
         retval = optimize.minimize(
-            self.dual,
+            # self.dual,
+            self.gradnorm,
             self.oldparams,
             args=(),
             method=self.algorithm,
@@ -299,11 +319,15 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
             if not isinstance(self.auxiliary_sampler, Iterator):
                 raise ValueError("Pass a generator as your `auxiliary_sampler`.")
 
-        self._setup_features()
+        if self.verbose > 1:
+            print("Evaluating feature functions on sample data X ...")
 
         F = evaluate_feature_matrix(
             self.feature_functions, X, array_format=self.array_format
         )
+        if self.verbose > 1:
+            print("Done.")
+
         k = np.asarray(F.mean(axis=0))
         self.fit_expectations(k)
 
@@ -494,6 +518,12 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
 
         return G
 
+    def gradnorm(self, params=None, ignorepenalty=False):
+        """
+        The norm of the (regularized) gradient.
+        """
+        return norm(self.grad(params=params, ignorepenalty=ignorepenalty))
+
     def mse(self):
         """
         Return the mean squared error of the desired versus estimated feature expectations.
@@ -652,6 +682,16 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         self.fnevals = 0
         self.gradevals = 0
         self.n_iter_ = 0
+
+        # Clear the stored duals and gradient norms
+        self.duals = {}
+        self.gradnorms = {}
+        if hasattr(self, "external_duals"):
+            self.external_duals = {}
+        if hasattr(self, "external_gradnorms"):
+            self.external_gradnorms = {}
+        if hasattr(self, "external"):
+            self.external = None
 
     def setcallback(self, callback=None, callback_dual=None, callback_grad=None):
         """Sets callback functions to be called every iteration, every
