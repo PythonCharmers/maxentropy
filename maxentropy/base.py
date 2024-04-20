@@ -185,7 +185,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         self.paramstol = 1e-5
 
         self.maxfun = 1500
-        self.mindual = -100.0  # The entropy dual must actually be
+        self.mindual = -1000  # The entropy dual must actually be
         # non-negative, but the estimate may be slightly out when using sampling
         # without implying divergence to -inf.
         self.callingback = False

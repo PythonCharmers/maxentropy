@@ -299,7 +299,10 @@ def test_dictsampler():
     assert_allclose(p[0] + p[2], target_expectations[2], atol=1e-2)
 
 
-def test_classifier():
+@pytest.mark.xfail(
+    "The MinDivergenceClassifier was removed but we want it back. Can we implement it more simply than before, using the component classes? (See test_classifier_components below.)"
+)
+def test_MinDivergenceClassifier():
     iris = load_iris()
 
     iris.keys()
@@ -345,6 +348,84 @@ def test_classifier():
     )  # i.e. map iris target class 0 to 3, class 1 to 6, class 2 to 9
     y = target_mapping[y]
     clf.fit(X, y)
+    log_proba = clf.predict_log_proba(X)
+    proba = clf.predict_proba(X)
+    assert_allclose(np.log(proba), log_proba)
+    pred = clf.predict(X)
+    assert sorted(set(pred)) == sorted(target_mapping)
+    assert clf.score(X, y) > 0.9
+
+
+def test_classifier_components():
+    iris = load_iris()
+
+    iris.keys()
+
+    X = iris.data
+    y = iris.target
+
+    def f0(X):
+        return X[:, 0] ** 2
+
+    def f1(X):
+        return X[:, 1] ** 2
+
+    def f2(X):
+        return X[:, 2] ** 2
+
+    def f3(X):
+        return X[:, 3] ** 2
+
+    def f4(X):
+        """
+        Petal length * petal width
+        """
+        return X[:, 1] * X[:, 2]
+
+    stretched_minima, stretched_maxima = utils.bounds_stretched(
+        X, stretch_factor=1.0
+    )  # i.e. 100%
+    uniform_dist = scipy.stats.uniform(
+        stretched_minima, stretched_maxima - stretched_minima
+    )
+    sampler = utils.auxiliary_sampler_scipy(
+        uniform_dist, n_dims=len(iris["feature_names"]), n_samples=10_000
+    )
+    # Alternative:
+    sampler = utils.make_uniform_sampler(
+        stretched_minima, stretched_maxima, n_samples=10_000
+    )
+    bounds_low, bounds_high = utils.bounds_stretched(X, stretch_factor=0.5)
+    bounds_features = [utils.cutoff_low(low, i) for i, low in enumerate(bounds_low)] + [
+        utils.cutoff_high(high, i) for i, high in enumerate(bounds_high)
+    ]
+    density = maxentropy.MinDivergenceDensity(
+        feature_functions=bounds_features, auxiliary_sampler=sampler, verbose=True
+    )
+    density.fit(X, y)
+
+    y_freq = np.bincount(y)
+    y_freq = y_freq / np.sum(y_freq)
+
+    new_features = [f0, f1, f2, f3, f4]
+
+    better_p_x_given_k = maxentropy.MinDivergenceFamily(
+        new_features,
+        sampler,
+        density.predict_log_proba,
+        verbose=True,
+        max_iter=5_000,
+    )
+    better_p_x_given_k.fit(X, y)
+    clf = maxentropy.D2GClassifier(
+        better_p_x_given_k.predict_log_proba, prior_class_probs=y_freq
+    )
+    # For added fun, we test whether `predict` etc. can handle labels that don't start at 0 and non-consecutive labels:
+    target_mapping = np.array(
+        [3, 6, 9]
+    )  # i.e. map iris target class 0 to 3, class 1 to 6, class 2 to 9
+    y = target_mapping[y]
+    # clf.fit(X, y)
     log_proba = clf.predict_log_proba(X)
     proba = clf.predict_proba(X)
     assert_allclose(np.log(proba), log_proba)
@@ -407,7 +488,8 @@ def test_current_api_fixme():
 #     model.fit(X_cancer, feature_functions=feature_functions)
 
 
-def test_classifier():
+@pytest.mark.skip("MinDivergenceClassifier has been removed. Do we need it?")
+def test_classifier_old_from_mlp():
 
     wine = load_wine()
 
@@ -449,4 +531,49 @@ def test_classifier():
         vectorized=True,
     )
     clf.fit(X_wine, y_wine)
+    print(f"Score of the MinKLClassifier: {clf.score(X_wine, y_wine)}")
+
+
+def test_classifier_new_from_mlp():
+
+    wine = load_wine()
+
+    X_wine = wine["data"]
+    y_wine = wine["target"]
+
+    net = MLPClassifier(
+        hidden_layer_sizes=(100,),
+        learning_rate_init=0.01,
+        max_iter=1000,
+        random_state=7,
+    )
+    net.fit(X_wine, y_wine)
+    print(f"Score of MLPClassifier = {net.score(X_wine, y_wine)}")
+
+    # None of the values in the wine data can be negative, so define constraints
+    # on these feature functions:
+
+    @tz.curry
+    def non_neg(column, x):
+        return x[:, column] >= 0
+
+    feature_functions = [non_neg(i) for i in range(len(wine["feature_names"]))]
+
+    y_freq = np.bincount(y_wine)
+    y_freq = y_freq / np.sum(y_freq)
+
+    minima = X_wine.min(axis=0) - 10 * X_wine.std(axis=0)
+    maxima = X_wine.max(axis=0) + 10 * X_wine.std(axis=0)
+    sampler = utils.make_uniform_sampler(minima, maxima, n_samples=100_000)
+
+    density = maxentropy.MinDivergenceDensity(
+        feature_functions,
+        auxiliary_sampler=sampler,
+        prior_log_pdf=net.predict_log_proba,
+        array_format="ndarray",
+        vectorized=True,
+    )
+    density.fit(X_wine, y_wine)
+
+    clf = maxentropy.D2GClassifier(density.predict_log_proba, prior_class_probs=y_freq)
     print(f"Score of the MinKLClassifier: {clf.score(X_wine, y_wine)}")
