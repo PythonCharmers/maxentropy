@@ -1012,6 +1012,50 @@ class D2GDensity(DensityMixin, BaseEstimator):
         self.estimate_sampling_stdevs = estimate_sampling_stdevs
         self.matrixtrials = matrixtrials
 
+    def log_norm_constant(self):
+        """
+        Estimate the integral of the unnormalized $\dot{p}(x | k)$ for each
+        class $k$ using the provided auxiliary sampler.
+
+        The sampler should generate values that extend beyond the support of $p$.
+
+        Returns
+        -------
+        logs of integrals: ndarray
+            An array of (log) integrals for each class $k$.
+        """
+        # First see whether logZ has been precomputed
+        if hasattr(self, "logZapprox"):
+            return self.logZapprox
+
+        # The following works but there should be no need to re-sample if the
+        # evidence model has already done that.
+        # sample_xs, sample_log_probs = next(self.auxiliary_sampler)
+        sample_xs = self.evidence_model.sample
+        sample_log_probs = self.evidence_model.sample_log_probs
+        # y = unnormalized_conditional_density.predict_proba(sample_xs)
+        model_log_probs = self.predict_unnormalized_log_proba(sample_xs)
+        # return np.mean(y, axis=0) * (sample_xs.max() - sample_xs.min())
+        # return np.sum(y / np.reshape(np.exp(sample_log_probs), (-1, 1)), axis=0)
+        n = len(sample_log_probs)
+        self.logZapprox = logsumexp(
+            -sample_log_probs + model_log_probs.T, axis=1
+        ) - np.log(n)
+        return self.logZapprox
+
+    def norm_constant(self):
+        """
+        Evaluate the integral of $p(x | k)$ for the given class $k$, using the given sampler.
+
+        The sampler should generate values that extend beyond the support of $p$.
+
+        Returns
+        -------
+        integrals: ndarray
+            An array of integrals for each class $k$.
+        """
+        return np.exp(self.log_norm_constant())
+
     def fit(self, X, y):
         """
         Fit the background "evidence" model p(x) with maximal entropy subject
@@ -1073,13 +1117,24 @@ class D2GDensity(DensityMixin, BaseEstimator):
         The log probability of the observation x under this generative model
         p(x | k) for each target class k.
 
+        We normalize by dividing by the estimated integral of the pdf for each class k.
+        """
+        return self.predict_unnormalized_log_proba(X) - self.log_norm_constant()
+
+    def predict_unnormalized_log_proba(self, X):
+        r"""
+        The (unnormalized) log probability of the observation x under this
+        generative model p(x | k) for each target class k. This will be
+        unnormalized if the background model $p(x)$ is incorrect up to a
+        constant factor \alpha_k for each class k.
+
         Since:
 
-            p(X | k) = p(k | x) * p(x) / p(k)
+            p(x | k) = p(k | x) * p(x) / p(k)
 
         we have:
 
-            log p(X | k) = log p(k | X) + p(x) - log p(k)
+            log p(x | k) = log p(k | X) + p(x) - log p(k)
 
         Output: ndarray of shape (N, K), with one column for each of the target
         classes k.
@@ -1322,6 +1377,12 @@ class MinDivergenceFamily(DensityMixin, BaseEstimator):
         # Custom attribute to track if the estimator is fitted
         self._is_fitted = True
         return self
+
+    def gradnorm(self):
+        """
+        Return an array of gradient norms, one for each model class k.
+        """
+        return np.array([model.gradnorm() for model in self.models])
 
     def predict_log_proba(self, X: np.ndarray) -> np.ndarray:
         """

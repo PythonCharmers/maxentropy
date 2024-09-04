@@ -691,6 +691,9 @@ def evaluate_fn_and_extract_column(fn, k, X):
     return fn(X)[:, k]
 
 
+# Curried feature functions:
+
+
 @tz.curry
 def cutoff_low(cutoff, column, X):
     """
@@ -709,6 +712,24 @@ def cutoff_high(cutoff, column, X):
     per-class empirical frequency in the dataset.
     """
     return X[:, column] <= cutoff
+
+
+@tz.curry
+def moment(k, column, X):
+    """
+    X^k, the given column
+    """
+    return X[:, column] ** k
+
+
+@tz.curry
+def identity(column, X):
+    return moment(1, column, X)
+
+
+@tz.curry
+def square(column, X):
+    return moment(2, column, X)
 
 
 def _test():
