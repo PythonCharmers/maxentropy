@@ -275,8 +275,8 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         callback = self.log
 
         retval = optimize.minimize(
-            # self.dual,
-            self.gradnorm,
+            self.dual,
+            # self.gradnorm,
             self.oldparams,
             args=(),
             method=self.algorithm,
@@ -285,6 +285,9 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
             options={"maxiter": self.max_iter, "disp": self.verbose},
             callback=callback,
         )
+        if not retval.success:
+            raise RuntimeError(retval.message + ' Try a different optimization algorithm or ensure your constraints do not conflict.')
+
         newparams = retval.x
         func_calls = retval.nfev
 
@@ -582,7 +585,7 @@ class BaseMinDivergenceDensity(DensityMixin, BaseEstimator, metaclass=ABCMeta):
         check_is_fitted(self)
 
         # Input validation
-        X = check_array(X)
+        X = check_array(X, accept_sparse=True, dtype=None)
 
         # if not hasattr(self, "logZ"):
         #     # Compute the norm constant (quickly!)

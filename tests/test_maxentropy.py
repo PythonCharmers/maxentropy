@@ -18,6 +18,7 @@ import toolz as tz
 
 import maxentropy
 import maxentropy.utils as utils
+from maxentropy.classifier import GenerativeBayesClassifier
 
 
 def test_logsumexp():
@@ -292,7 +293,7 @@ def test_dictsampler():
     # Manually test if the constraints are satisfied:
     F = model.features(samplespace)
     # p = model.pdf_from_features(F)
-    p = model.predict_proba(samplespace)
+    p = model.predict_proba([samplespace])
 
     assert_allclose(p.sum(), target_expectations[0], atol=1e-2)
     assert_allclose(p[0] + p[1], target_expectations[1], atol=1e-2)
@@ -404,8 +405,8 @@ def test_classifier_components():
     )
     density.fit(X, y)
 
-    y_freq = np.bincount(y)
-    y_freq = y_freq / np.sum(y_freq)
+    # y_freq = np.bincount(y)
+    # y_freq = y_freq / np.sum(y_freq)
 
     new_features = [f0, f1, f2, f3, f4]
 
@@ -416,16 +417,19 @@ def test_classifier_components():
         verbose=True,
         max_iter=5_000,
     )
-    better_p_x_given_k.fit(X, y)
-    clf = maxentropy.D2GClassifier(
-        better_p_x_given_k.predict_log_proba, prior_class_probs=y_freq
-    )
+    # better_p_x_given_k.fit(X, y)
+    clf = GenerativeBayesClassifier(better_p_x_given_k)
+    # clf = maxentropy.D2GClassifier(
+    #     better_p_x_given_k.predict_log_proba, prior_class_probs=y_freq
+    # )
     # For added fun, we test whether `predict` etc. can handle labels that don't start at 0 and non-consecutive labels:
     target_mapping = np.array(
         [3, 6, 9]
     )  # i.e. map iris target class 0 to 3, class 1 to 6, class 2 to 9
     y = target_mapping[y]
-    # clf.fit(X, y)
+
+    clf.fit(X, y)
+
     log_proba = clf.predict_log_proba(X)
     proba = clf.predict_proba(X)
     assert_allclose(np.log(proba), log_proba)

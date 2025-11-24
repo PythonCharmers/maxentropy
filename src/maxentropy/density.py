@@ -178,7 +178,7 @@ class DiscreteMinDivergenceDensity(BaseMinDivergenceDensity):
         )
 
         if self.prior_log_pdf is not None:
-            lp = self.prior_log_pdf(self.samplespace)
+            lp = self.prior_log_pdf(np.array(self.samplespace)[:, None])
             self.priorlogprobs = np.reshape(lp, len(self.samplespace))
 
         self._check_features()
@@ -1119,11 +1119,11 @@ class D2GDensity(DensityMixin, BaseEstimator):
 
         We normalize by dividing by the estimated integral of the pdf for each class k.
         """
-        return self.predict_unnormalized_log_proba(X) - self.log_norm_constant()
+        return self.decision_function(X) - self.log_norm_constant()
 
-    def predict_unnormalized_log_proba(self, X):
+    def decision_function(self, X):
         r"""
-        The (unnormalized) log probability of the observation x under this
+        The raw (unnormalized) log probability of the observation x under this
         generative model p(x | k) for each target class k. This will be
         unnormalized if the background model $p(x)$ is incorrect up to a
         constant factor \alpha_k for each class k.

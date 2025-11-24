@@ -1,4 +1,4 @@
-"""
+r"""
 # maxentropy: Routines for fitting maximum entropy models.
 
 Copyright: Ed Schofield, 2024 License: BSD-style (see LICENSE.md in
@@ -93,7 +93,7 @@ from .density import (
     D2GDensity,
     MinDivergenceFamily,
 )
-from .classifier import D2GClassifier
+from .classifier import GenerativeBayesClassifier
 
 
 # Make sure that DeprecationWarning within this package always gets printed
@@ -109,7 +109,7 @@ __all__ = [
     "MinDivergenceDensity",
     "D2GDensity",
     "MinDivergenceFamily",
-    "D2GClassifier",
+    "GenerativeBayesClassifier",
 ]
 
 # PEP0440 compatible formatted version, see:

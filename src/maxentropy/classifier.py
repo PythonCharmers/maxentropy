@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Iterable, Any
 
 import numpy as np
-from sklearn.base import BaseEstimator, ClassifierMixin, clone
+from sklearn.base import BaseEstimator, ClassifierMixin, clone, MetaEstimatorMixin
 from sklearn.utils.validation import (
     check_X_y,
     check_array,
@@ -18,7 +18,7 @@ from sklearn.utils.validation import (
 from scipy.special import logsumexp
 
 
-class GenerativeBayesClassifier(BaseEstimator, ClassifierMixin):
+class GenerativeBayesClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
     """
     A meta-estimator that turns a density estimator into a supervised classifier
     via the Bayes decision rule.
